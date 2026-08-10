@@ -1,0 +1,6 @@
+{
+  "name": "RZ® Minetrix BOS",
+  "description": "Enterprise Business Operating System platform for Mining, Quarry, Crusher, Fleet, Building Materials, Equipment Rental, CRM, and Marketplace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
