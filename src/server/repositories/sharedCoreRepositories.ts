@@ -49,7 +49,7 @@ export class TenantRepository {
       version: 1
     };
     db.tenants.set(newTenant.id, newTenant);
-    db.persistToDisk();
+    db.schedulePersist();
     return newTenant;
   }
 }
@@ -113,7 +113,7 @@ export class UserRepository {
       version: 1
     };
     db.users.set(newUser.id, newUser);
-    db.persistToDisk();
+    db.schedulePersist();
     return newUser;
   }
 
@@ -128,7 +128,7 @@ export class UserRepository {
       version: user.version + 1
     };
     db.users.set(id, updated);
-    db.persistToDisk();
+    db.schedulePersist();
     return updated;
   }
 }
@@ -160,7 +160,7 @@ export class AuditRepository {
       createdAt: new Date().toISOString()
     };
     db.auditLogs.set(logEntry.id, logEntry);
-    db.persistToDisk();
+    db.schedulePersist();
     return logEntry;
   }
 
@@ -192,7 +192,7 @@ export class NotificationRepository {
       createdAt: new Date().toISOString()
     };
     db.notifications.set(newNotif.id, newNotif);
-    db.persistToDisk();
+    db.schedulePersist();
     return newNotif;
   }
 
@@ -202,7 +202,7 @@ export class NotificationRepository {
     notif.isRead = true;
     notif.readAt = new Date().toISOString();
     db.notifications.set(id, notif);
-    db.persistToDisk();
+    db.schedulePersist();
     return true;
   }
 }
@@ -234,7 +234,7 @@ export class DocumentRepository {
       version: 1
     };
     db.documents.set(newDoc.id, newDoc);
-    db.persistToDisk();
+    db.schedulePersist();
     return newDoc;
   }
 }
@@ -262,7 +262,7 @@ export class WorkflowRepository {
       updatedAt: now
     };
     db.workflowInstances.set(newInst.id, newInst);
-    db.persistToDisk();
+    db.schedulePersist();
     return newInst;
   }
 }

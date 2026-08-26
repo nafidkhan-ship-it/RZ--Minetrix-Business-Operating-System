@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { db, generateUuidV7 } from '../db/database.js';
 import { AuditRepository, RolePermissionRepository } from '../repositories/sharedCoreRepositories.js';
 import { jwtService } from '../security/jwtService.js';
+import { isPostgresEnabled } from '../db/postgresPool.js';
+import { runWithRequestTenant } from '../db/tenantContext.js';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -132,6 +134,10 @@ export function enforceTenantContext(req: CustomRequest, res: Response, next: Ne
       error: 'FORBIDDEN_CROSS_TENANT_ACCESS',
       message: `Tenant Isolation Security: User of Tenant [${req.user.tenantId}] is strictly forbidden from accessing Target Tenant [${targetTenantId}].`
     });
+  }
+
+  if (isPostgresEnabled()) {
+    return runWithRequestTenant(req.user.tenantId, () => next());
   }
 
   next();

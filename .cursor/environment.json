@@ -1,0 +1,6 @@
+{
+  "name": "RZ Minetrix BOS",
+  "install": "npm install",
+  "start": "npm run dev",
+  "ports": [3000]
+}
