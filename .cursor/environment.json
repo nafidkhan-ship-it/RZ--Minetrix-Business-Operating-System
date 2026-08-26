@@ -1,6 +1,6 @@
 {
   "name": "RZ Minetrix BOS",
-  "install": "npm install",
-  "start": "npm run dev",
+  "install": "bash scripts/cloud-agent-install.sh",
+  "start": "bash scripts/cloud-agent-start.sh",
   "ports": [3000]
 }
