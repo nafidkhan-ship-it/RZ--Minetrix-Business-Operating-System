@@ -21,6 +21,7 @@ import {
 } from './schema.js';
 import { IPersistenceAdapter, LocalJsonPersistenceAdapter, PostgresPersistenceAdapter, DatabaseTables } from './persistenceAdapter.js';
 import { syncRelationalTenantData } from './relationalTenantStore.js';
+import { isProduction } from '../config/securityConfig.js';
 
 // Utility: UUID v7 generator (RFC 9562 compliant timestamp-ordered UUID)
 export function generateUuidV7(): string {
@@ -61,7 +62,13 @@ export class DatabaseStore {
 
   constructor() {
     this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
-    if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
+    const hasPostgres = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+
+    if (isProduction() && !hasPostgres) {
+      throw new Error('Production requires DATABASE_URL. JSON persistence fallback is not permitted.');
+    }
+
+    if (hasPostgres) {
       this.persistenceAdapter = new PostgresPersistenceAdapter();
     } else {
       this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);

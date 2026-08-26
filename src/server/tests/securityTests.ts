@@ -7,6 +7,7 @@ import {
   isTestSuiteEnabled,
   validateJwtSecurityConfig,
   validateSignedUrlSecurityConfig,
+  validateDatabaseConfig,
   verifySignedUrlSignature
 } from '../config/securityConfig.js';
 import { SECURITY_HEADER_NAMES } from '../middleware/securityHeaders.js';
@@ -93,6 +94,30 @@ export async function runSecurityTests(): Promise<{
     'Production requires configured RSA keys',
     !productionJwtCheck.ok && productionJwtCheck.status === 'PRODUCTION_KEYS_REQUIRED',
     productionJwtCheck.status
+  );
+
+  const productionDatabaseCheck = (() => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousPostgresUrl = process.env.POSTGRES_URL;
+    process.env.NODE_ENV = 'production';
+    delete process.env.DATABASE_URL;
+    delete process.env.POSTGRES_URL;
+    const result = validateDatabaseConfig();
+    process.env.NODE_ENV = previousNodeEnv;
+    if (previousDatabaseUrl) {
+      process.env.DATABASE_URL = previousDatabaseUrl;
+    }
+    if (previousPostgresUrl) {
+      process.env.POSTGRES_URL = previousPostgresUrl;
+    }
+    return result;
+  })();
+  record(
+    'Database',
+    'Production requires DATABASE_URL (no JSON fallback)',
+    !productionDatabaseCheck.ok && productionDatabaseCheck.status === 'PRODUCTION_DATABASE_URL_REQUIRED',
+    productionDatabaseCheck.status
   );
 
   const productionSignedUrlCheck = (() => {

@@ -14,6 +14,7 @@
     "test:postgres-rls": "tsx scripts/test-postgres-rls.ts",
     "test:security": "tsx scripts/test-security.ts",
     "test:shared-core": "tsx scripts/test-shared-core.ts",
+    "test:erp-quarry-schema": "tsx scripts/test-erp-quarry-schema.ts",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },
   "dependencies": {

@@ -4,8 +4,10 @@ import { LocalStorageProvider } from '../providers/storageProvider.ts';
 import { isPostgresEnabled } from '../db/postgresPool.js';
 import {
   getCorsAllowedOrigins,
+  isProduction,
   isSecurityReadyForProduction,
   isTestSuiteEnabled,
+  validateDatabaseConfig,
   validateJwtSecurityConfig,
   validateSignedUrlSecurityConfig
 } from '../config/securityConfig.js';
@@ -18,6 +20,7 @@ export async function getReadinessPayload() {
   const jwtMeta = jwtService.getKeyMetadata();
   const jwtValidation = validateJwtSecurityConfig();
   const signedUrlValidation = validateSignedUrlSecurityConfig();
+  const databaseValidation = validateDatabaseConfig();
 
   const persistenceMode = adapterStatus.status === 'POSTGRESQL_CONNECTED'
     ? 'POSTGRESQL'
@@ -26,18 +29,28 @@ export async function getReadinessPayload() {
       : 'NOT_CONNECTED';
 
   const isPersistenceHealthy =
-    adapterStatus.status === 'POSTGRESQL_CONNECTED' || adapterStatus.status === 'FALLBACK_JSON';
+    adapterStatus.status === 'POSTGRESQL_CONNECTED' ||
+    (!isProduction() && adapterStatus.status === 'FALLBACK_JSON');
 
   const securityReady = isSecurityReadyForProduction();
   const corsOrigins = getCorsAllowedOrigins();
 
   return {
-    status: isDbReady && isPersistenceHealthy && jwtValidation.ok && signedUrlValidation.ok && securityReady ? 'READY' : 'NOT_READY',
+    status:
+      isDbReady &&
+      isPersistenceHealthy &&
+      jwtValidation.ok &&
+      signedUrlValidation.ok &&
+      databaseValidation.ok &&
+      securityReady
+        ? 'READY'
+        : 'NOT_READY',
     checks: {
       databaseStore: isDbReady ? 'HEALTHY' : 'UNHEALTHY',
       persistenceAdapter: adapterStatus.status,
       persistenceMode,
       persistenceEngine: adapterStatus.engine,
+      databaseConfigStatus: databaseValidation.status,
       jwtSignerAlgorithm: jwtMeta.algorithm,
       jwtKeyStatus: jwtMeta.status,
       jwtKeySource: jwtMeta.keySource,
@@ -62,6 +75,10 @@ export async function getReadinessPayload() {
         status: signedUrlValidation.status,
         ok: signedUrlValidation.ok,
         source: signedUrlValidation.source || 'unknown'
+      },
+      database: {
+        status: databaseValidation.status,
+        ok: databaseValidation.ok
       },
       testSuite: {
         enabled: isTestSuiteEnabled()

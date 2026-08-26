@@ -4,19 +4,24 @@ import { createServer as createViteServer } from 'vite';
 import { createCoreApp } from './src/server/app.js';
 import { notFoundHandler, errorHandler } from './src/server/middleware/errorHandler.js';
 import { initializeDatabase } from './src/server/db/database.js';
-import { isProduction, validateJwtSecurityConfig, validateSignedUrlSecurityConfig } from './src/server/config/securityConfig.js';
+import { isProduction, validateJwtSecurityConfig, validateSignedUrlSecurityConfig, validateDatabaseConfig } from './src/server/config/securityConfig.js';
 import { getCorsConfigSummary } from './src/server/middleware/corsMiddleware.js';
 import { jwtService } from './src/server/security/jwtService.js';
 
 async function startServer() {
   const jwtCheck = validateJwtSecurityConfig();
   const signedUrlCheck = validateSignedUrlSecurityConfig();
+  const databaseCheck = validateDatabaseConfig();
   if (isProduction() && !jwtCheck.ok) {
     console.error(`[Security] ${jwtCheck.message}`);
     process.exit(1);
   }
   if (isProduction() && !signedUrlCheck.ok) {
     console.error(`[Security] ${signedUrlCheck.message}`);
+    process.exit(1);
+  }
+  if (isProduction() && !databaseCheck.ok) {
+    console.error(`[Security] ${databaseCheck.message}`);
     process.exit(1);
   }
 

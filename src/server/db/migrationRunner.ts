@@ -8,8 +8,17 @@ export async function runDatabaseMigrations(connectionUrl: string): Promise<stri
   const pool = new pg.Pool({ connectionString: connectionUrl });
   const client = await pool.connect();
   const applied: string[] = [];
+  const MIGRATION_LOCK_KEY = 724501;
 
   try {
+    const lockResult = await client.query(
+      'SELECT pg_try_advisory_lock($1) AS acquired',
+      [MIGRATION_LOCK_KEY]
+    );
+    if (!lockResult.rows[0]?.acquired) {
+      throw new Error('Another migration runner holds the advisory lock. Retry shortly.');
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS core_schema_migrations (
         id SERIAL PRIMARY KEY,
@@ -48,6 +57,11 @@ export async function runDatabaseMigrations(connectionUrl: string): Promise<stri
       }
     }
   } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    } catch {
+      // Lock is released automatically when the session ends.
+    }
     client.release();
     await pool.end();
   }

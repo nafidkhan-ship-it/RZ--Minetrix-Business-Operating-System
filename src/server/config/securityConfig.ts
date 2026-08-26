@@ -106,13 +106,39 @@ export function getJwtReadinessStatus(): string {
   return validateJwtSecurityConfig().status;
 }
 
+export function validateDatabaseConfig(): { ok: boolean; status: string; message?: string } {
+  const hasDatabaseUrl = Boolean(
+    process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim()
+  );
+
+  if (isProduction()) {
+    if (!hasDatabaseUrl) {
+      return {
+        ok: false,
+        status: 'PRODUCTION_DATABASE_URL_REQUIRED',
+        message: 'NODE_ENV=production requires DATABASE_URL (PostgreSQL). JSON fallback is not permitted.'
+      };
+    }
+    return { ok: true, status: 'POSTGRESQL_CONFIGURED' };
+  }
+
+  return {
+    ok: true,
+    status: hasDatabaseUrl ? 'POSTGRESQL_CONFIGURED' : 'DEVELOPMENT_JSON_FALLBACK'
+  };
+}
+
 export function isSecurityReadyForProduction(): boolean {
   const jwt = validateJwtSecurityConfig();
   const signedUrl = validateSignedUrlSecurityConfig();
+  const database = validateDatabaseConfig();
   if (isProduction() && !jwt.ok) {
     return false;
   }
   if (isProduction() && !signedUrl.ok) {
+    return false;
+  }
+  if (isProduction() && !database.ok) {
     return false;
   }
   if (isProduction() && getCorsAllowedOrigins().length === 0) {
