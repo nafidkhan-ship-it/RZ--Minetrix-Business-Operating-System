@@ -7,6 +7,8 @@ import {
   AuditLog, WorkflowDefinition, WorkflowInstance, WorkflowAction
 } from './schema.js';
 import { runDatabaseMigrations } from './migrationRunner.js';
+import { closePostgresPool, getPostgresPool, isPostgresEnabled } from './postgresPool.js';
+import { syncRelationalTenantData } from './relationalTenantStore.js';
 
 export interface DatabaseTables {
   tenants: Tenant[];
@@ -33,7 +35,11 @@ export interface IPersistenceAdapter {
   initialize(): Promise<void>;
   loadAll(): Promise<DatabaseTables>;
   saveAll(tables: DatabaseTables): Promise<void>;
-  executeHealthCheck(): Promise<{ status: string; engine: string; tablesCount: number }>;
+  executeHealthCheck(): Promise<{
+    status: 'POSTGRESQL_CONNECTED' | 'FALLBACK_JSON' | 'NOT_CONNECTED' | 'CONFIGURATION_REQUIRED';
+    engine: string;
+    tablesCount: number;
+  }>;
 }
 
 const EMPTY_TABLES: DatabaseTables = {
@@ -95,9 +101,13 @@ export class LocalJsonPersistenceAdapter implements IPersistenceAdapter {
     }
   }
 
-  public async executeHealthCheck(): Promise<{ status: string; engine: string; tablesCount: number }> {
+  public async executeHealthCheck(): Promise<{
+    status: 'POSTGRESQL_CONNECTED' | 'FALLBACK_JSON' | 'NOT_CONNECTED' | 'CONFIGURATION_REQUIRED';
+    engine: string;
+    tablesCount: number;
+  }> {
     return {
-      status: 'ACTIVE_FALLBACK',
+      status: 'FALLBACK_JSON',
       engine: 'Local JSON File System (/data/shared_core_db.json)',
       tablesCount: 16
     };
@@ -107,7 +117,6 @@ export class LocalJsonPersistenceAdapter implements IPersistenceAdapter {
 export class PostgresPersistenceAdapter implements IPersistenceAdapter {
   public providerName: 'POSTGRES_DRIZZLE' = 'POSTGRES_DRIZZLE';
   private connectionUrl?: string;
-  private pool: pg.Pool | null = null;
   private initialized = false;
 
   constructor() {
@@ -115,22 +124,15 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
   }
 
   public isLivePostgresConnected(): boolean {
-    return Boolean(this.connectionUrl && this.connectionUrl.length > 5);
+    return isPostgresEnabled();
   }
 
   private getPool(): pg.Pool {
-    if (!this.pool) {
-      if (!this.connectionUrl) {
-        throw new Error('PostgreSQL connection credentials not provided in environment variables.');
-      }
-      this.pool = new pg.Pool({
-        connectionString: this.connectionUrl,
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000
-      });
+    const pool = getPostgresPool();
+    if (!pool) {
+      throw new Error('PostgreSQL connection credentials not provided in environment variables.');
     }
-    return this.pool;
+    return pool;
   }
 
   public async initialize(): Promise<void> {
@@ -178,9 +180,20 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
        DO UPDATE SET state_json = EXCLUDED.state_json, updated_at = NOW()`,
       ['primary', JSON.stringify(tables)]
     );
+
+    await syncRelationalTenantData({
+      companies: tables.companies,
+      branches: tables.branches,
+      users: tables.users,
+      auditLogs: tables.auditLogs
+    });
   }
 
-  public async executeHealthCheck(): Promise<{ status: string; engine: string; tablesCount: number }> {
+  public async executeHealthCheck(): Promise<{
+    status: 'POSTGRESQL_CONNECTED' | 'FALLBACK_JSON' | 'NOT_CONNECTED' | 'CONFIGURATION_REQUIRED';
+    engine: string;
+    tablesCount: number;
+  }> {
     if (!this.isLivePostgresConnected()) {
       return {
         status: 'CONFIGURATION_REQUIRED',
@@ -196,19 +209,20 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
       const migrationCount = await pool.query(
         'SELECT COUNT(*)::int AS count FROM core_schema_migrations'
       );
-      const snapshotCount = await pool.query(
-        'SELECT COUNT(*)::int AS count FROM core_platform_snapshot'
+      const rlsCount = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM pg_tables
+         WHERE schemaname = 'public' AND tablename LIKE 'core_%' AND rowsecurity = true`
       );
 
       return {
-        status: 'CONNECTED',
-        engine: `PostgreSQL (${migrationCount.rows[0].count} migrations, ${snapshotCount.rows[0].count} snapshots)`,
+        status: 'POSTGRESQL_CONNECTED',
+        engine: `PostgreSQL (${migrationCount.rows[0].count} migrations, ${rlsCount.rows[0].count} RLS tables)`,
         tablesCount: 16
       };
     } catch (error) {
       console.error('[PersistenceAdapter] PostgreSQL health check failed:', error);
       return {
-        status: 'UNHEALTHY',
+        status: 'NOT_CONNECTED',
         engine: 'PostgreSQL connection failed',
         tablesCount: 0
       };
@@ -216,9 +230,6 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
   }
 
   public async close(): Promise<void> {
-    if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
-    }
+    await closePostgresPool();
   }
 }

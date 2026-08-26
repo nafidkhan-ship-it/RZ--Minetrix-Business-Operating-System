@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "db:migrate": "tsx scripts/db-migrate.ts"
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "test:postgres-rls": "tsx scripts/test-postgres-rls.ts",
+    "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

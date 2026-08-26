@@ -20,6 +20,7 @@ import {
   WorkflowAction
 } from './schema.js';
 import { IPersistenceAdapter, LocalJsonPersistenceAdapter, PostgresPersistenceAdapter, DatabaseTables } from './persistenceAdapter.js';
+import { syncRelationalTenantData } from './relationalTenantStore.js';
 
 // Utility: UUID v7 generator (RFC 9562 compliant timestamp-ordered UUID)
 export function generateUuidV7(): string {
@@ -85,6 +86,14 @@ export class DatabaseStore {
       if (hasData) {
         this.loadFromDump(parsed);
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
+        if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
+          await syncRelationalTenantData({
+            companies: parsed.companies || [],
+            branches: parsed.branches || [],
+            users: parsed.users || [],
+            auditLogs: parsed.auditLogs || []
+          });
+        }
         this.initialized = true;
         return;
       }
