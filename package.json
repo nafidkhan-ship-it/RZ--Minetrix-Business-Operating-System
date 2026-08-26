@@ -15,6 +15,7 @@
     "test:security": "tsx scripts/test-security.ts",
     "test:shared-core": "tsx scripts/test-shared-core.ts",
     "test:erp-quarry-schema": "tsx scripts/test-erp-quarry-schema.ts",
+    "test:erp-quarry-api": "tsx scripts/test-erp-quarry-api.ts",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },
   "dependencies": {

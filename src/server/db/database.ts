@@ -387,6 +387,19 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
+    const quarryPermIds = ['p2', 'p3'];
+    for (const permId of quarryPermIds) {
+      const perm = permList.find((item) => item.id === permId);
+      if (!perm) continue;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId: roleQuarryMgr.id,
+        permissionId: perm.id,
+        permissionCode: perm.code
+      });
+    }
+
     // 7. Master Data
     const md1: MasterData = {
       id: 'md-uom-mt',

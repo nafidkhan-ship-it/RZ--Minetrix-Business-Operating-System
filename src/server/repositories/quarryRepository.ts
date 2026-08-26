@@ -103,4 +103,17 @@ export class QuarryRepository {
       return result.rows[0] ? mapQuarryRow(result.rows[0]) : null;
     });
   }
+
+  async findByCode(tenantId: string, code: string): Promise<ErpQuarry | null> {
+    return withTenantTransaction(tenantId, async (client: pg.PoolClient) => {
+      const result = await client.query(
+        `SELECT *
+         FROM erp_quarries
+         WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL
+         LIMIT 1`,
+        [tenantId, code.trim().toUpperCase()]
+      );
+      return result.rows[0] ? mapQuarryRow(result.rows[0]) : null;
+    });
+  }
 }

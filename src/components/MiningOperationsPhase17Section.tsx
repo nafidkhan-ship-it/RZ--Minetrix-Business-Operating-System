@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Pickaxe, Factory, Building2, ShoppingBag, Truck, Cpu,
   Layers, ShieldCheck, Sparkles, CheckCircle2, Search, Filter,
@@ -25,6 +25,16 @@ import {
   BuildingMaterialItem,
   PublicCustomerOrder
 } from '../data/miningPlatformPhase17Data';
+import { apiClient } from '../services/apiClient';
+
+interface QuarrySiteRecord {
+  id: string;
+  code: string;
+  name: string;
+  mineralType: string;
+  operationalStatus: string;
+  capacityTons?: number;
+}
 
 export const MiningOperationsPhase17Section: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
@@ -73,9 +83,65 @@ export const MiningOperationsPhase17Section: React.FC = () => {
   // Crusher state
   const [crusherLog] = useState(MOCK_CRUSHER_SHIFT_LOGS);
 
+  const [quarries, setQuarries] = useState<QuarrySiteRecord[]>([]);
+  const [quarriesLoading, setQuarriesLoading] = useState(false);
+  const [quarryForm, setQuarryForm] = useState({
+    code: '',
+    name: '',
+    mineralType: 'HARD_ROCK',
+    capacityTons: 1000
+  });
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const loadQuarries = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setQuarries([]);
+      return;
+    }
+    setQuarriesLoading(true);
+    const res = await apiClient.listQuarries();
+    if (res.success && Array.isArray(res.data)) {
+      setQuarries(res.data);
+    } else if (res.error === 'NETWORK_ERROR' || res.message) {
+      showToast(res.message || 'Unable to load quarry sites');
+    }
+    setQuarriesLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'land-management') {
+      loadQuarries();
+    }
+  }, [activeTab, loadQuarries]);
+
+  const handleCreateQuarry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to register quarry sites');
+      return;
+    }
+    if (!quarryForm.code.trim() || !quarryForm.name.trim()) {
+      showToast('Quarry code and name are required');
+      return;
+    }
+    const res = await apiClient.createQuarry({
+      code: quarryForm.code.trim().toUpperCase(),
+      name: quarryForm.name.trim(),
+      mineralType: quarryForm.mineralType,
+      operationalStatus: 'ACTIVE',
+      capacityTons: Number(quarryForm.capacityTons)
+    });
+    if (res.success) {
+      showToast(`Quarry [${quarryForm.code.toUpperCase()}] registered`);
+      setQuarryForm({ code: '', name: '', mineralType: 'HARD_ROCK', capacityTons: 1000 });
+      await loadQuarries();
+    } else {
+      showToast(res.message || 'Failed to create quarry');
+    }
   };
 
   const handleCreateOrder = (e: React.FormEvent) => {
@@ -374,7 +440,61 @@ export const MiningOperationsPhase17Section: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Pickaxe className="w-4 h-4 text-amber-400" /> Quarry Site Registry (Live API)
+              </h3>
+              {!apiClient.getAuthToken() && (
+                <p className="text-xs text-slate-400">
+                  Login via Phase 16 Shared Core to load and register quarry sites from PostgreSQL.
+                </p>
+              )}
+              <form onSubmit={handleCreateQuarry} className="space-y-3 text-xs">
+                <input
+                  type="text"
+                  placeholder="Quarry code (e.g. QRY-NORTH)"
+                  value={quarryForm.code}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, code: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+                <input
+                  type="text"
+                  placeholder="Quarry name"
+                  value={quarryForm.name}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+                <select
+                  value={quarryForm.mineralType}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, mineralType: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                >
+                  <option value="HARD_ROCK">Hard Rock</option>
+                  <option value="LATERITE">Laterite</option>
+                  <option value="GRANITE">Granite</option>
+                  <option value="BLUE_METAL">Blue Metal</option>
+                </select>
+                <button type="submit" className="w-full py-2 bg-amber-500 text-slate-950 font-bold rounded-lg">
+                  Register Quarry Site
+                </button>
+              </form>
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {quarriesLoading && <p className="text-slate-400 text-xs">Loading quarry sites...</p>}
+                {!quarriesLoading && quarries.length === 0 && (
+                  <p className="text-slate-500 text-xs">No quarry sites registered yet.</p>
+                )}
+                {quarries.map((quarry) => (
+                  <div key={quarry.id} className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-xs">
+                    <div className="font-bold text-amber-300">{quarry.code}</div>
+                    <div className="text-white">{quarry.name}</div>
+                    <div className="text-slate-400">{quarry.mineralType} · {quarry.operationalStatus}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
             {MOCK_LAND_OWNERS.map((lo) => (
               <div key={lo.id} className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
@@ -419,6 +539,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       )}
