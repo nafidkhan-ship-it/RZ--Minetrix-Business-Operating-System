@@ -188,3 +188,80 @@ export function validateCreateQuarryBody(req: CustomRequest, res: Response, next
 
   next();
 }
+
+export function validateUpdateQuarryBody(req: CustomRequest, res: Response, next: NextFunction) {
+  const body = req.body || {};
+  const { name, mineralType, operationalStatus, branchId, gpsLatitude, gpsLongitude, capacityTons } = body;
+
+  if (
+    name === undefined &&
+    mineralType === undefined &&
+    operationalStatus === undefined &&
+    branchId === undefined &&
+    gpsLatitude === undefined &&
+    gpsLongitude === undefined &&
+    capacityTons === undefined
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'BAD_REQUEST',
+      message: 'At least one updatable field is required.'
+    });
+  }
+
+  if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 255)) {
+    return res.status(400).json({
+      success: false,
+      error: 'BAD_REQUEST',
+      message: 'name must be between 2 and 255 characters.'
+    });
+  }
+
+  if (mineralType !== undefined && (typeof mineralType !== 'string' || !MINERAL_TYPES.has(mineralType))) {
+    return res.status(400).json({
+      success: false,
+      error: 'BAD_REQUEST',
+      message: 'mineralType must be one of LATERITE, GRANITE, HARD_ROCK, BLUE_METAL, OTHER.'
+    });
+  }
+
+  if (operationalStatus !== undefined && (typeof operationalStatus !== 'string' || !OPERATIONAL_STATUSES.has(operationalStatus))) {
+    return res.status(400).json({
+      success: false,
+      error: 'BAD_REQUEST',
+      message: 'operationalStatus must be ACTIVE, MAINTENANCE, ENVIRONMENTAL_PAUSE, or INACTIVE.'
+    });
+  }
+
+  if (branchId !== undefined && branchId !== '' && (typeof branchId !== 'string' || !SAFE_ID_PATTERN.test(branchId))) {
+    return res.status(400).json({
+      success: false,
+      error: 'BAD_REQUEST',
+      message: 'Invalid branchId.'
+    });
+  }
+
+  if (gpsLatitude !== undefined && (typeof gpsLatitude !== 'number' || gpsLatitude < -90 || gpsLatitude > 90)) {
+    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'gpsLatitude must be between -90 and 90.' });
+  }
+
+  if (gpsLongitude !== undefined && (typeof gpsLongitude !== 'number' || gpsLongitude < -180 || gpsLongitude > 180)) {
+    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'gpsLongitude must be between -180 and 180.' });
+  }
+
+  if (capacityTons !== undefined && (typeof capacityTons !== 'number' || capacityTons < 0)) {
+    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'capacityTons must be a non-negative number.' });
+  }
+
+  req.body = {
+    name: name !== undefined ? name.trim() : undefined,
+    mineralType,
+    operationalStatus,
+    branchId,
+    gpsLatitude,
+    gpsLongitude,
+    capacityTons
+  };
+
+  next();
+}

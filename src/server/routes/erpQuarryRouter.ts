@@ -8,7 +8,8 @@ import {
 import {
   rejectClientTenantId,
   validateCreateQuarryBody,
-  validateResourceIdParam
+  validateResourceIdParam,
+  validateUpdateQuarryBody
 } from '../middleware/inputValidation.js';
 import { QuarryService, QuarryServiceError } from '../services/quarryService.js';
 
@@ -85,6 +86,43 @@ erpQuarryRouter.post(
         }
       );
       return res.status(201).json({ success: true, data: quarry });
+    } catch (error) {
+      return handleQuarryError(error, res);
+    }
+  }
+);
+
+erpQuarryRouter.patch(
+  '/quarries/:id',
+  authenticateJwt,
+  rejectClientTenantId,
+  enforceTenantContext,
+  requirePermission('mining:quarry:create'),
+  validateResourceIdParam('id'),
+  validateUpdateQuarryBody,
+  async (req: CustomRequest, res: Response) => {
+    try {
+      const quarry = await quarryService.updateQuarry(req.user!.tenantId, req.params.id, {
+        ...req.body,
+        updatedBy: req.user!.userId
+      });
+      return res.json({ success: true, data: quarry });
+    } catch (error) {
+      return handleQuarryError(error, res);
+    }
+  }
+);
+
+erpQuarryRouter.delete(
+  '/quarries/:id',
+  authenticateJwt,
+  enforceTenantContext,
+  requirePermission('mining:quarry:create'),
+  validateResourceIdParam('id'),
+  async (req: CustomRequest, res: Response) => {
+    try {
+      await quarryService.archiveQuarry(req.user!.tenantId, req.params.id, req.user!.userId);
+      return res.json({ success: true, message: 'Quarry archived successfully.' });
     } catch (error) {
       return handleQuarryError(error, res);
     }

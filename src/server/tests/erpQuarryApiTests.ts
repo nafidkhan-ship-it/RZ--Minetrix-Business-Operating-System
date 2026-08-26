@@ -135,6 +135,44 @@ export async function runErpQuarryApiTests(): Promise<{
     message: `status=${tenantBody.status}`
   });
 
+  const updateRes = quarryId
+    ? await request(app)
+        .patch(`/api/v1/erp/quarries/${quarryId}`)
+        .set(authHeader)
+        .send({ name: 'Integration Test Quarry Updated', capacityTons: 1500 })
+    : null;
+
+  results.push({
+    testName: 'PATCH /erp/quarries/:id updates quarry',
+    passed: Boolean(
+      updateRes &&
+        updateRes.status === 200 &&
+        updateRes.body?.data?.name === 'Integration Test Quarry Updated' &&
+        updateRes.body?.data?.capacityTons === 1500
+    ),
+    message: updateRes ? `status=${updateRes.status}` : 'create failed'
+  });
+
+  const archiveCode = `QRY-ARC-${Date.now().toString().slice(-5)}`;
+  const archiveCreateRes = await request(app)
+    .post('/api/v1/erp/quarries')
+    .set(authHeader)
+    .send({ code: archiveCode, name: 'Archive Target Quarry' });
+
+  const archiveId = archiveCreateRes.body?.data?.id;
+  const archiveRes = archiveId
+    ? await request(app).delete(`/api/v1/erp/quarries/${archiveId}`).set(authHeader)
+    : null;
+  const archivedGetRes = archiveId
+    ? await request(app).get(`/api/v1/erp/quarries/${archiveId}`).set(authHeader)
+    : null;
+
+  results.push({
+    testName: 'DELETE /erp/quarries/:id archives quarry',
+    passed: Boolean(archiveRes && archiveRes.status === 200 && archivedGetRes && archivedGetRes.status === 404),
+    message: archiveRes ? `delete=${archiveRes.status}, get=${archivedGetRes?.status}` : 'create failed'
+  });
+
   const passedCount = results.filter((result) => result.passed).length;
   return {
     skipped: false,

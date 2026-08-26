@@ -16,6 +16,17 @@ export interface CreateQuarryInput {
   createdBy?: string;
 }
 
+export interface UpdateQuarryInput {
+  name?: string;
+  mineralType?: QuarryMineralType;
+  operationalStatus?: QuarryOperationalStatus;
+  gpsLatitude?: number;
+  gpsLongitude?: number;
+  capacityTons?: number;
+  branchId?: string;
+  updatedBy?: string;
+}
+
 function mapQuarryRow(row: Record<string, unknown>): ErpQuarry {
   return {
     id: String(row.id),
@@ -114,6 +125,82 @@ export class QuarryRepository {
         [tenantId, code.trim().toUpperCase()]
       );
       return result.rows[0] ? mapQuarryRow(result.rows[0]) : null;
+    });
+  }
+
+  async update(tenantId: string, quarryId: string, input: UpdateQuarryInput): Promise<ErpQuarry | null> {
+    const fields: string[] = [];
+    const values: unknown[] = [tenantId, quarryId];
+    let paramIndex = 3;
+
+    if (input.name !== undefined) {
+      fields.push(`name = $${paramIndex++}`);
+      values.push(input.name.trim());
+    }
+    if (input.mineralType !== undefined) {
+      fields.push(`mineral_type = $${paramIndex++}`);
+      values.push(input.mineralType);
+    }
+    if (input.operationalStatus !== undefined) {
+      fields.push(`operational_status = $${paramIndex++}`);
+      values.push(input.operationalStatus);
+    }
+    if (input.gpsLatitude !== undefined) {
+      fields.push(`gps_latitude = $${paramIndex++}`);
+      values.push(input.gpsLatitude);
+    }
+    if (input.gpsLongitude !== undefined) {
+      fields.push(`gps_longitude = $${paramIndex++}`);
+      values.push(input.gpsLongitude);
+    }
+    if (input.capacityTons !== undefined) {
+      fields.push(`capacity_tons = $${paramIndex++}`);
+      values.push(input.capacityTons);
+    }
+    if (input.branchId !== undefined) {
+      fields.push(`branch_id = $${paramIndex++}`);
+      values.push(input.branchId || null);
+    }
+    if (input.updatedBy !== undefined) {
+      fields.push(`updated_by = $${paramIndex++}`);
+      values.push(input.updatedBy);
+    }
+
+    if (fields.length === 0) {
+      return this.findById(tenantId, quarryId);
+    }
+
+    const now = new Date().toISOString();
+    fields.push(`updated_at = $${paramIndex++}`);
+    values.push(now);
+    fields.push('version = version + 1');
+
+    return withTenantTransaction(tenantId, async (client: pg.PoolClient) => {
+      const result = await client.query(
+        `UPDATE erp_quarries
+         SET ${fields.join(', ')}
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+         RETURNING *`,
+        values
+      );
+      return result.rows[0] ? mapQuarryRow(result.rows[0]) : null;
+    });
+  }
+
+  async archive(tenantId: string, quarryId: string, updatedBy?: string): Promise<boolean> {
+    const now = new Date().toISOString();
+    return withTenantTransaction(tenantId, async (client: pg.PoolClient) => {
+      const result = await client.query(
+        `UPDATE erp_quarries
+         SET deleted_at = $3,
+             operational_status = 'INACTIVE',
+             updated_at = $3,
+             updated_by = $4,
+             version = version + 1
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, quarryId, now, updatedBy || null]
+      );
+      return (result.rowCount ?? 0) > 0;
     });
   }
 }

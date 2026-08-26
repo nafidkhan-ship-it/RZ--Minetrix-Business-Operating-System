@@ -1,4 +1,4 @@
-import { QuarryRepository, CreateQuarryInput } from '../repositories/quarryRepository.js';
+import { QuarryRepository, CreateQuarryInput, UpdateQuarryInput } from '../repositories/quarryRepository.js';
 import { ErpQuarry } from '../db/erp/quarryTypes.js';
 import { isPostgresEnabled } from '../db/postgresPool.js';
 import { db } from '../db/database.js';
@@ -75,6 +75,27 @@ export class QuarryService {
         throw new QuarryServiceError('DUPLICATE_QUARRY_CODE', `Quarry code [${input.code}] already exists.`, 409);
       }
       throw error;
+    }
+  }
+
+  async updateQuarry(
+    tenantId: string,
+    quarryId: string,
+    input: UpdateQuarryInput
+  ): Promise<ErpQuarry> {
+    this.ensurePostgres();
+    const updated = await this.quarryRepo.update(tenantId, quarryId, input);
+    if (!updated) {
+      throw new QuarryServiceError('NOT_FOUND', 'Quarry not found.', 404);
+    }
+    return updated;
+  }
+
+  async archiveQuarry(tenantId: string, quarryId: string, updatedBy?: string): Promise<void> {
+    this.ensurePostgres();
+    const archived = await this.quarryRepo.archive(tenantId, quarryId, updatedBy);
+    if (!archived) {
+      throw new QuarryServiceError('NOT_FOUND', 'Quarry not found.', 404);
     }
   }
 }
