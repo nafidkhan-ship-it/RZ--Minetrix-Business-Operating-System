@@ -3,8 +3,12 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './src/server/routes/apiRouter.js';
 import { correlationIdMiddleware } from './src/server/middleware/authMiddleware.js';
+import { initializeDatabase } from './src/server/db/database.js';
+import { getReadinessPayload } from './src/server/health/readiness.js';
 
 async function startServer() {
+  await initializeDatabase();
+
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const HOST = '0.0.0.0';
@@ -19,8 +23,9 @@ async function startServer() {
     res.json({ status: 'UP', timestamp: new Date().toISOString() });
   });
 
-  app.get('/health/readiness', (req, res) => {
-    res.json({ status: 'READY', db: 'CONNECTED', timestamp: new Date().toISOString() });
+  app.get('/health/readiness', async (req, res) => {
+    const payload = await getReadinessPayload();
+    res.status(payload.status === 'READY' ? 200 : 503).json(payload);
   });
 
   // Shared Core API v1 Gateway Router

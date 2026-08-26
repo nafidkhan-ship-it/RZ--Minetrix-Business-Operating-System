@@ -16,6 +16,7 @@ import {
 } from '../services/sharedCoreServices.js';
 import { OrganizationRepository, RolePermissionRepository, DocumentRepository } from '../repositories/sharedCoreRepositories.js';
 import { runSharedCoreTestSuite } from '../tests/sharedCoreTests.js';
+import { getReadinessPayload } from '../health/readiness.js';
 import { db } from '../db/database.js';
 import { jwtService } from '../security/jwtService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
@@ -55,30 +56,8 @@ apiRouter.get('/health/liveness', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
-  const isDbReady = db.tenants.size > 0;
-  const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
-  const jwtMeta = jwtService.getKeyMetadata();
-
-  res.json({
-    status: isDbReady ? 'READY' : 'NOT_READY',
-    checks: {
-      databaseStore: isDbReady ? 'HEALTHY' : 'UNHEALTHY',
-      persistenceAdapter: adapterStatus.status,
-      persistenceEngine: adapterStatus.engine,
-      jwtSignerAlgorithm: jwtMeta.algorithm,
-      jwtKeyStatus: jwtMeta.status,
-      storageProvider: storageProvider.providerName,
-      notificationCore: 'ACTIVE_IN_APP'
-    },
-    counts: {
-      tenants: db.tenants.size,
-      users: db.users.size,
-      companies: db.companies.size,
-      branches: db.branches.size,
-      auditLogs: db.auditLogs.size
-    },
-    timestamp: new Date().toISOString()
-  });
+  const payload = await getReadinessPayload();
+  res.status(payload.status === 'READY' ? 200 : 503).json(payload);
 });
 
 // ==========================================
