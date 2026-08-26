@@ -20,6 +20,7 @@ import {
   WorkflowAction
 } from './schema.js';
 import { IPersistenceAdapter, LocalJsonPersistenceAdapter, PostgresPersistenceAdapter, DatabaseTables } from './persistenceAdapter.js';
+import { syncRelationalTenantData } from './relationalTenantStore.js';
 
 // Utility: UUID v7 generator (RFC 9562 compliant timestamp-ordered UUID)
 export function generateUuidV7(): string {
@@ -56,6 +57,7 @@ export class DatabaseStore {
 
   public persistenceAdapter: IPersistenceAdapter;
   private storageFilePath: string;
+  private initialized = false;
 
   constructor() {
     this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
@@ -64,30 +66,44 @@ export class DatabaseStore {
     } else {
       this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);
     }
-    this.initializeAndSeed();
   }
 
-  private initializeAndSeed() {
-    // Ensure directory exists
+  public async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    await this.persistenceAdapter.initialize();
+
     const dir = path.dirname(this.storageFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    if (fs.existsSync(this.storageFilePath)) {
-      try {
-        const fileContent = fs.readFileSync(this.storageFilePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
+    try {
+      const parsed = await this.persistenceAdapter.loadAll();
+      const hasData = (parsed.tenants?.length || 0) > 0;
+      if (hasData) {
         this.loadFromDump(parsed);
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
+        if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
+          await syncRelationalTenantData({
+            companies: parsed.companies || [],
+            branches: parsed.branches || [],
+            users: parsed.users || [],
+            auditLogs: parsed.auditLogs || []
+          });
+        }
+        this.initialized = true;
         return;
-      } catch (err) {
-        console.warn('[DB] Failed to parse db json file, seeding fresh database:', err);
       }
+    } catch (err) {
+      console.warn('[DB] Failed to load persistence state, seeding fresh database:', err);
     }
 
     this.seedDefaultEnterpriseData();
-    this.persistToDisk();
+    await this.persistToDisk();
+    this.initialized = true;
   }
 
   private loadFromDump(dump: any) {
@@ -109,7 +125,11 @@ export class DatabaseStore {
     if (dump.workflowActions) dump.workflowActions.forEach((item: WorkflowAction) => this.workflowActions.set(item.id, item));
   }
 
-  public persistToDisk() {
+  public schedulePersist(): void {
+    void this.persistToDisk();
+  }
+
+  public async persistToDisk(): Promise<void> {
     try {
       const dump = {
         tenants: Array.from(this.tenants.values()),
@@ -129,9 +149,9 @@ export class DatabaseStore {
         workflowInstances: Array.from(this.workflowInstances.values()),
         workflowActions: Array.from(this.workflowActions.values())
       };
-      fs.writeFileSync(this.storageFilePath, JSON.stringify(dump, null, 2), 'utf-8');
+      await this.persistenceAdapter.saveAll(dump);
     } catch (err) {
-      console.error('[DB] Error persisting database to disk:', err);
+      console.error('[DB] Error persisting database state:', err);
     }
   }
 
@@ -429,3 +449,7 @@ export class DatabaseStore {
 
 // Global Singleton DB Instance
 export const db = new DatabaseStore();
+
+export async function initializeDatabase(): Promise<void> {
+  await db.initialize();
+}

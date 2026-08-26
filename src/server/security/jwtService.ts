@@ -1,4 +1,9 @@
 import crypto from 'crypto';
+import {
+  hasProductionJwtKeys,
+  isProduction,
+  validateJwtSecurityConfig
+} from '../config/securityConfig.js';
 
 export interface JwtHeader {
   alg: 'RS256';
@@ -9,7 +14,7 @@ export interface JwtHeader {
 export interface JwtPayload {
   iss: string;
   aud: string;
-  sub: string; // userId
+  sub: string;
   exp: number;
   iat: number;
   tenantId: string;
@@ -20,27 +25,51 @@ export interface JwtPayload {
   roles: string[];
 }
 
+export type JwtKeySource = 'env' | 'ephemeral';
+
 export class JwtService {
   private privateKeyPem: string;
   private publicKeyPem: string;
+  private keySource: JwtKeySource;
   private keyId: string = 'rz-rsa-key-2026-v1';
   private issuer: string = 'rz-minetrix-bos';
   private audience: string = 'rz-minetrix-clients';
 
   constructor() {
-    if (process.env.RSA_PRIVATE_KEY && process.env.RSA_PUBLIC_KEY) {
-      this.privateKeyPem = process.env.RSA_PRIVATE_KEY;
-      this.publicKeyPem = process.env.RSA_PUBLIC_KEY;
-    } else {
-      // Auto-generate 2048-bit RSA Keypair for development/testing
-      const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: { type: 'spki', format: 'pem' },
-        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-      });
-      this.privateKeyPem = privateKey;
-      this.publicKeyPem = publicKey;
+    if (hasProductionJwtKeys()) {
+      this.privateKeyPem = process.env.RSA_PRIVATE_KEY!.trim();
+      this.publicKeyPem = process.env.RSA_PUBLIC_KEY!.trim();
+      this.keySource = 'env';
+      return;
     }
+
+    if (isProduction()) {
+      throw new Error('Production requires RSA_PRIVATE_KEY and RSA_PUBLIC_KEY environment variables');
+    }
+
+    const allowEphemeral =
+      process.env.ALLOW_EPHEMERAL_JWT_KEYS === 'true' ||
+      process.env.ALLOW_EPHEMERAL_JWT_KEYS !== 'false';
+
+    if (!allowEphemeral) {
+      throw new Error(
+        'JWT keys are not configured. Set RSA_PRIVATE_KEY/RSA_PUBLIC_KEY or ALLOW_EPHEMERAL_JWT_KEYS=true for development.'
+      );
+    }
+
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    });
+    this.privateKeyPem = privateKey;
+    this.publicKeyPem = publicKey;
+    this.keySource = 'ephemeral';
+    console.warn('[JWT] Using ephemeral RSA keys for development. Tokens will not survive restarts.');
+  }
+
+  public getKeySource(): JwtKeySource {
+    return this.keySource;
   }
 
   public getPublicKeyPem(): string {
@@ -48,13 +77,15 @@ export class JwtService {
   }
 
   public getKeyMetadata() {
+    const jwtStatus = validateJwtSecurityConfig();
     return {
       algorithm: 'RS256 (RSA-256 Asymmetric Signing)',
       keyId: this.keyId,
       issuer: this.issuer,
       audience: this.audience,
       keyType: 'RSA 2048-bit',
-      status: process.env.RSA_PRIVATE_KEY ? 'PRODUCTION_KEY_LOADED' : 'DEVELOPMENT_DYNAMIC_RSA_KEYPAIR'
+      status: jwtStatus.status,
+      keySource: this.keySource
     };
   }
 
@@ -78,7 +109,7 @@ export class JwtService {
       iss: this.issuer,
       aud: this.audience,
       sub: userClaims.userId,
-      exp: now + 86400, // 24 hours
+      exp: now + 86400,
       iat: now,
       tenantId: userClaims.tenantId,
       companyId: userClaims.companyId,
@@ -117,17 +148,16 @@ export class JwtService {
 
       const payload: JwtPayload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf-8'));
 
-      // Claim checks
       const now = Math.floor(Date.now() / 1000);
       if (payload.exp && payload.exp < now) {
-        return null; // Expired
+        return null;
       }
       if (payload.iss !== this.issuer || payload.aud !== this.audience) {
-        return null; // Invalid issuer/audience
+        return null;
       }
 
       return payload;
-    } catch (err) {
+    } catch {
       return null;
     }
   }
