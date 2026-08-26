@@ -2,6 +2,12 @@ import { db } from '../db/database.js';
 import { jwtService } from '../security/jwtService.js';
 import { LocalStorageProvider } from '../providers/storageProvider.ts';
 import { isPostgresEnabled } from '../db/postgresPool.js';
+import {
+  getCorsAllowedOrigins,
+  isSecurityReadyForProduction,
+  isTestSuiteEnabled,
+  validateJwtSecurityConfig
+} from '../config/securityConfig.js';
 
 const storageProvider = new LocalStorageProvider();
 
@@ -9,6 +15,7 @@ export async function getReadinessPayload() {
   const isDbReady = db.tenants.size > 0;
   const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
   const jwtMeta = jwtService.getKeyMetadata();
+  const jwtValidation = validateJwtSecurityConfig();
 
   const persistenceMode = adapterStatus.status === 'POSTGRESQL_CONNECTED'
     ? 'POSTGRESQL'
@@ -19,8 +26,11 @@ export async function getReadinessPayload() {
   const isPersistenceHealthy =
     adapterStatus.status === 'POSTGRESQL_CONNECTED' || adapterStatus.status === 'FALLBACK_JSON';
 
+  const securityReady = isSecurityReadyForProduction();
+  const corsOrigins = getCorsAllowedOrigins();
+
   return {
-    status: isDbReady && isPersistenceHealthy ? 'READY' : 'NOT_READY',
+    status: isDbReady && isPersistenceHealthy && jwtValidation.ok && securityReady ? 'READY' : 'NOT_READY',
     checks: {
       databaseStore: isDbReady ? 'HEALTHY' : 'UNHEALTHY',
       persistenceAdapter: adapterStatus.status,
@@ -28,9 +38,25 @@ export async function getReadinessPayload() {
       persistenceEngine: adapterStatus.engine,
       jwtSignerAlgorithm: jwtMeta.algorithm,
       jwtKeyStatus: jwtMeta.status,
+      jwtKeySource: jwtMeta.keySource,
       storageProvider: storageProvider.providerName,
       notificationCore: 'ACTIVE_IN_APP',
-      postgresConfigured: isPostgresEnabled()
+      postgresConfigured: isPostgresEnabled(),
+      corsConfigured: corsOrigins.length > 0 ? 'CONFIGURED' : 'NOT_CONFIGURED',
+      securityHeaders: 'HELMET_ENABLED',
+      testSuiteEnabled: isTestSuiteEnabled(),
+      securityProductionReady: securityReady
+    },
+    security: {
+      corsAllowedOriginsCount: corsOrigins.length,
+      jwt: {
+        status: jwtValidation.status,
+        ok: jwtValidation.ok,
+        keySource: jwtMeta.keySource
+      },
+      testSuite: {
+        enabled: isTestSuiteEnabled()
+      }
     },
     counts: {
       tenants: db.tenants.size,

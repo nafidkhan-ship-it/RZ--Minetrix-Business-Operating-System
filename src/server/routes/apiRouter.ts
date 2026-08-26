@@ -22,6 +22,13 @@ import { jwtService } from '../security/jwtService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 import { LocalStorageProvider } from '../providers/storageProvider.ts';
 import { notificationDispatcher } from '../providers/notificationProviders.ts';
+import { isTestSuiteAuthorized, isTestSuiteEnabled } from '../config/securityConfig.js';
+import {
+  rejectClientTenantId,
+  validateLoginBody,
+  validateOptionalQueryId,
+  validateResourceIdParam
+} from '../middleware/inputValidation.js';
 
 export const apiRouter = Router();
 
@@ -63,12 +70,8 @@ apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
 // ==========================================
 // 2. AUTHENTICATION ENDPOINTS
 // ==========================================
-apiRouter.post('/auth/login', authRateLimiter, async (req: Request, res: Response) => {
+apiRouter.post('/auth/login', authRateLimiter, validateLoginBody, async (req: Request, res: Response) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'Email and password are required.' });
-  }
-
   const result = await authService.login(email, password, req.ip || '127.0.0.1');
   if (!result.success) {
     return res.status(401).json(result);
@@ -107,11 +110,17 @@ apiRouter.get('/organizations/companies', authenticateJwt, enforceTenantContext,
   return res.json({ success: true, data: companies });
 });
 
-apiRouter.get('/organizations/branches', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
-  const { companyId } = req.query;
-  const branches = await orgRepo.findBranchesByCompany(String(companyId || req.user!.companyId), req.user!.tenantId);
-  return res.json({ success: true, data: branches });
-});
+apiRouter.get(
+  '/organizations/branches',
+  authenticateJwt,
+  enforceTenantContext,
+  validateOptionalQueryId('companyId'),
+  async (req: CustomRequest, res: Response) => {
+    const { companyId } = req.query;
+    const branches = await orgRepo.findBranchesByCompany(String(companyId || req.user!.companyId), req.user!.tenantId);
+    return res.json({ success: true, data: branches });
+  }
+);
 
 // ==========================================
 // 4. USER MANAGEMENT ENDPOINTS
@@ -121,12 +130,20 @@ apiRouter.get('/users', authenticateJwt, enforceTenantContext, async (req: Custo
   return res.json(result);
 });
 
-apiRouter.post('/users/:id/link-operational', authenticateJwt, enforceTenantContext, requirePermission('shared:admin:access'), async (req: CustomRequest, res: Response) => {
-  const { id } = req.params;
-  const { employeeId, driverId, operatorId } = req.body || {};
-  const result = await userService.linkOperationalAccount(id, req.user!.tenantId, { employeeId, driverId, operatorId });
-  return res.json(result);
-});
+apiRouter.post(
+  '/users/:id/link-operational',
+  authenticateJwt,
+  enforceTenantContext,
+  requirePermission('shared:admin:access'),
+  validateResourceIdParam('id'),
+  rejectClientTenantId,
+  async (req: CustomRequest, res: Response) => {
+    const { id } = req.params;
+    const { employeeId, driverId, operatorId } = req.body || {};
+    const result = await userService.linkOperationalAccount(id, req.user!.tenantId, { employeeId, driverId, operatorId });
+    return res.json(result);
+  }
+);
 
 // ==========================================
 // 5. ROLES & PERMISSIONS (RBAC)
@@ -149,7 +166,7 @@ apiRouter.get('/notifications', authenticateJwt, enforceTenantContext, async (re
   return res.json(result);
 });
 
-apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
   const { recipientUserId, recipientEmail, title, body, channel, type } = req.body || {};
   const result = await notificationDispatcher.dispatch({
     tenantId: req.user!.tenantId,
@@ -187,7 +204,7 @@ apiRouter.get('/documents', authenticateJwt, enforceTenantContext, async (req: C
   return res.json({ success: true, data: docs });
 });
 
-apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
   const { fileName, fileSize, mimeType, module, entityType, entityId, accessLevel } = req.body || {};
   const doc = await docRepo.registerMetadata({
     tenantId: req.user!.tenantId,
@@ -218,7 +235,7 @@ apiRouter.get('/audit/search', authenticateJwt, enforceTenantContext, requirePer
 // ==========================================
 // 9. WORKFLOW ENGINE ENDPOINTS
 // ==========================================
-apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
   const { workflowCode, entityType, entityId } = req.body || {};
   const result = await wfService.initiateWorkflow(
     req.user!.tenantId,
@@ -234,15 +251,20 @@ apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, asy
 // 10. PROTECTED SHARED CORE TEST SUITE ENDPOINT
 // ==========================================
 apiRouter.get('/test/run-suite', testRateLimiter, async (req: Request, res: Response) => {
-  const isDev = process.env.NODE_ENV !== 'production';
-  const secretKey = req.query.key || req.headers['x-test-key'];
-  const isValidKey = secretKey === 'rz_test_suite_secret_2026';
+  if (!isTestSuiteEnabled()) {
+    return res.status(404).json({
+      success: false,
+      error: 'NOT_FOUND',
+      message: 'Test suite endpoint is not enabled.'
+    });
+  }
 
-  if (!isDev && !isValidKey) {
+  const secretKey = req.query.key || req.headers['x-test-key'];
+  if (!isTestSuiteAuthorized(secretKey)) {
     return res.status(403).json({
       success: false,
       error: 'FORBIDDEN_TEST_SUITE_ACCESS',
-      message: 'Test suite execution is disabled in production environments without administrative security key.'
+      message: 'Test suite execution requires a valid authorization key.'
     });
   }
 
