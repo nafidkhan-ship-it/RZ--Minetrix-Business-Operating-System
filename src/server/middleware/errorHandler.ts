@@ -7,7 +7,8 @@ const SENSITIVE_PATTERNS = [
   /RSA_PRIVATE_KEY/i,
   /BEGIN (RSA )?PRIVATE KEY/i,
   /DATABASE_URL/i,
-  /SHARED_CORE_TEST_SUITE_SECRET/i
+  /SHARED_CORE_TEST_SUITE_SECRET/i,
+  /SIGNED_URL_HMAC_SECRET/i
 ];
 
 function sanitizeErrorMessage(message: string): string {

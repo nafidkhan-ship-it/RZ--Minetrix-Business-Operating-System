@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 /**
  * Central security configuration derived from environment variables.
  * Never log secret values from this module.
@@ -106,11 +108,106 @@ export function getJwtReadinessStatus(): string {
 
 export function isSecurityReadyForProduction(): boolean {
   const jwt = validateJwtSecurityConfig();
+  const signedUrl = validateSignedUrlSecurityConfig();
   if (isProduction() && !jwt.ok) {
+    return false;
+  }
+  if (isProduction() && !signedUrl.ok) {
     return false;
   }
   if (isProduction() && getCorsAllowedOrigins().length === 0) {
     return false;
   }
   return true;
+}
+
+const MIN_SIGNED_URL_SECRET_LENGTH = 32;
+let cachedDevSignedUrlSecret: string | null = null;
+
+export function hasConfiguredSignedUrlSecret(): boolean {
+  const secret = process.env.SIGNED_URL_HMAC_SECRET?.trim();
+  return Boolean(secret && secret.length >= MIN_SIGNED_URL_SECRET_LENGTH);
+}
+
+export function validateSignedUrlSecurityConfig(): {
+  ok: boolean;
+  status: string;
+  message?: string;
+  source?: 'env' | 'ephemeral';
+} {
+  if (hasConfiguredSignedUrlSecret()) {
+    return { ok: true, status: 'PRODUCTION_SECRET_LOADED', source: 'env' };
+  }
+
+  if (isProduction()) {
+    return {
+      ok: false,
+      status: 'PRODUCTION_SECRET_REQUIRED',
+      message: 'NODE_ENV=production requires SIGNED_URL_HMAC_SECRET (min 32 characters).'
+    };
+  }
+
+  if (
+    process.env.ALLOW_EPHEMERAL_SIGNED_URL_SECRET === 'true' ||
+    process.env.ALLOW_EPHEMERAL_SIGNED_URL_SECRET !== 'false'
+  ) {
+    return { ok: true, status: 'DEVELOPMENT_EPHEMERAL_ALLOWED', source: 'ephemeral' };
+  }
+
+  return {
+    ok: false,
+    status: 'EPHEMERAL_SECRET_DISABLED',
+    message: 'Set SIGNED_URL_HMAC_SECRET or ALLOW_EPHEMERAL_SIGNED_URL_SECRET=true for development.'
+  };
+}
+
+export function getSignedUrlHmacSecret(): string {
+  const configured = process.env.SIGNED_URL_HMAC_SECRET?.trim();
+  if (configured) {
+    if (configured.length < MIN_SIGNED_URL_SECRET_LENGTH) {
+      throw new Error(`SIGNED_URL_HMAC_SECRET must be at least ${MIN_SIGNED_URL_SECRET_LENGTH} characters.`);
+    }
+    return configured;
+  }
+
+  if (isProduction()) {
+    throw new Error('Production requires SIGNED_URL_HMAC_SECRET environment variable.');
+  }
+
+  const validation = validateSignedUrlSecurityConfig();
+  if (!validation.ok) {
+    throw new Error(validation.message || 'Signed URL HMAC secret is not configured.');
+  }
+
+  if (!cachedDevSignedUrlSecret) {
+    cachedDevSignedUrlSecret = crypto.randomBytes(32).toString('hex');
+    console.warn('[Storage] Using ephemeral signed-URL HMAC secret for development.');
+  }
+
+  return cachedDevSignedUrlSecret;
+}
+
+export function signSignedUrlPayload(storageKey: string, expiresAt: number): string {
+  const secret = getSignedUrlHmacSecret();
+  return crypto.createHmac('sha256', secret).update(`${storageKey}:${expiresAt}`).digest('hex');
+}
+
+export function verifySignedUrlSignature(
+  storageKey: string,
+  expiresAt: number,
+  signature: string
+): boolean {
+  if (!signature || !Number.isFinite(expiresAt)) {
+    return false;
+  }
+
+  const expected = signSignedUrlPayload(storageKey, expiresAt);
+  const provided = Buffer.from(signature, 'hex');
+  const expectedBuffer = Buffer.from(expected, 'hex');
+
+  if (provided.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(provided, expectedBuffer);
 }

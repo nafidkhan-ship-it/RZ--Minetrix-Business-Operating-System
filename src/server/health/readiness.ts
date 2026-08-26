@@ -6,7 +6,8 @@ import {
   getCorsAllowedOrigins,
   isSecurityReadyForProduction,
   isTestSuiteEnabled,
-  validateJwtSecurityConfig
+  validateJwtSecurityConfig,
+  validateSignedUrlSecurityConfig
 } from '../config/securityConfig.js';
 
 const storageProvider = new LocalStorageProvider();
@@ -16,6 +17,7 @@ export async function getReadinessPayload() {
   const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
   const jwtMeta = jwtService.getKeyMetadata();
   const jwtValidation = validateJwtSecurityConfig();
+  const signedUrlValidation = validateSignedUrlSecurityConfig();
 
   const persistenceMode = adapterStatus.status === 'POSTGRESQL_CONNECTED'
     ? 'POSTGRESQL'
@@ -30,7 +32,7 @@ export async function getReadinessPayload() {
   const corsOrigins = getCorsAllowedOrigins();
 
   return {
-    status: isDbReady && isPersistenceHealthy && jwtValidation.ok && securityReady ? 'READY' : 'NOT_READY',
+    status: isDbReady && isPersistenceHealthy && jwtValidation.ok && signedUrlValidation.ok && securityReady ? 'READY' : 'NOT_READY',
     checks: {
       databaseStore: isDbReady ? 'HEALTHY' : 'UNHEALTHY',
       persistenceAdapter: adapterStatus.status,
@@ -39,6 +41,8 @@ export async function getReadinessPayload() {
       jwtSignerAlgorithm: jwtMeta.algorithm,
       jwtKeyStatus: jwtMeta.status,
       jwtKeySource: jwtMeta.keySource,
+      signedUrlSecretStatus: signedUrlValidation.status,
+      signedUrlSecretSource: signedUrlValidation.source || 'unknown',
       storageProvider: storageProvider.providerName,
       notificationCore: 'ACTIVE_IN_APP',
       postgresConfigured: isPostgresEnabled(),
@@ -53,6 +57,11 @@ export async function getReadinessPayload() {
         status: jwtValidation.status,
         ok: jwtValidation.ok,
         keySource: jwtMeta.keySource
+      },
+      signedUrl: {
+        status: signedUrlValidation.status,
+        ok: signedUrlValidation.ok,
+        source: signedUrlValidation.source || 'unknown'
       },
       testSuite: {
         enabled: isTestSuiteEnabled()

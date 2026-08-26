@@ -5,9 +5,12 @@ import { initializeDatabase } from '../db/database.js';
 import {
   getCorsAllowedOrigins,
   isTestSuiteEnabled,
-  validateJwtSecurityConfig
+  validateJwtSecurityConfig,
+  validateSignedUrlSecurityConfig,
+  verifySignedUrlSignature
 } from '../config/securityConfig.js';
 import { SECURITY_HEADER_NAMES } from '../middleware/securityHeaders.js';
+import { LocalStorageProvider } from '../providers/storageProvider.js';
 
 export interface SecurityTestResult {
   testName: string;
@@ -90,6 +93,43 @@ export async function runSecurityTests(): Promise<{
     'Production requires configured RSA keys',
     !productionJwtCheck.ok && productionJwtCheck.status === 'PRODUCTION_KEYS_REQUIRED',
     productionJwtCheck.status
+  );
+
+  const productionSignedUrlCheck = (() => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    delete process.env.SIGNED_URL_HMAC_SECRET;
+    const result = validateSignedUrlSecurityConfig();
+    process.env.NODE_ENV = previousNodeEnv;
+    return result;
+  })();
+  record(
+    'Signed URL Secret',
+    'Production requires configured signed URL HMAC secret',
+    !productionSignedUrlCheck.ok && productionSignedUrlCheck.status === 'PRODUCTION_SECRET_REQUIRED',
+    productionSignedUrlCheck.status
+  );
+
+  const storageProvider = new LocalStorageProvider();
+  const signedUrl = await storageProvider.getSignedUrl({
+    storageKey: 'tenant-rz-global-001/doc_test.pdf',
+    tenantId: 'tenant-rz-global-001'
+  });
+  const signedUrlParams = new URL(signedUrl, 'http://localhost');
+  const storageKey = signedUrlParams.searchParams.get('key') || '';
+  const expiresAt = Number(signedUrlParams.searchParams.get('exp'));
+  const signature = signedUrlParams.searchParams.get('sig') || '';
+  record(
+    'Signed URL Secret',
+    'Signed URL generation and verification works with configured secret',
+    verifySignedUrlSignature(storageKey, expiresAt, signature),
+    signedUrl
+  );
+  record(
+    'Signed URL Secret',
+    'Signed URL response does not expose secret material',
+    !signedUrl.includes('secret') && !signedUrl.includes(process.env.SIGNED_URL_HMAC_SECRET || '__none__'),
+    'signed URL path only'
   );
 
   const testSuiteDisabled = (() => {
