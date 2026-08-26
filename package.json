@@ -16,6 +16,7 @@
     "test:shared-core": "tsx scripts/test-shared-core.ts",
     "test:erp-quarry-schema": "tsx scripts/test-erp-quarry-schema.ts",
     "test:erp-quarry-api": "tsx scripts/test-erp-quarry-api.ts",
+    "verify:stage5a-live": "bash scripts/stage5a-live-verify.sh",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },
   "dependencies": {
