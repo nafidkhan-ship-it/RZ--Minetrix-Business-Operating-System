@@ -278,6 +278,15 @@ export class DatabaseStore {
       { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
+      { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
+      { id: 'p26', code: 'hrms:employee:update', module: 'HRMS', action: 'update', description: 'Update or archive employees' },
+      { id: 'p27', code: 'hrms:attendance:view', module: 'HRMS', action: 'view', description: 'View attendance' },
+      { id: 'p28', code: 'hrms:attendance:create', module: 'HRMS', action: 'create', description: 'Record attendance' },
+      { id: 'p29', code: 'hrms:leave:view', module: 'HRMS', action: 'view', description: 'View leave requests' },
+      { id: 'p30', code: 'hrms:leave:create', module: 'HRMS', action: 'create', description: 'Request leave' },
+      { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
+      { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
+      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' },
       { id: 'p7', code: 'chat:message:send', module: 'RZ Chat', action: 'send', description: 'Send Realtime Chat Messages' }
     ];
     permList.forEach(p => this.permissions.set(p.id, p));
@@ -404,7 +413,10 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
-    const quarryPermIds = ['p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24'];
+    const quarryPermIds = [
+      'p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24',
+      'p6', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30', 'p31'
+    ];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);
       if (!perm) continue;

@@ -31,6 +31,7 @@ import {
 } from '../middleware/inputValidation.js';
 import { erpQuarryRouter } from './erpQuarryRouter.js';
 import { erpOperationsRouter } from './erpOperationsRouter.js';
+import { hrmsRouter } from './hrmsRouter.js';
 
 export const apiRouter = Router();
 
@@ -51,6 +52,7 @@ apiRouter.use(auditLogger);
 // ERP Quarry + operations APIs (PostgreSQL + RLS)
 apiRouter.use('/erp', erpQuarryRouter);
 apiRouter.use('/erp', erpOperationsRouter);
+apiRouter.use('/hrms', hrmsRouter);
 
 // Rate Limiters
 const authRateLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 15, keyPrefix: 'auth_login' });

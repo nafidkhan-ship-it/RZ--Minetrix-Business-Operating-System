@@ -254,6 +254,34 @@ export async function runPostgresRlsIntegrationTests(): Promise<{
     record('CRM leads RLS hides rows from other tenant', false, error.message);
   }
 
+  try {
+    const employeeId = `emp-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO hrms_employees (id, tenant_id, code, full_name, joining_date, department, designation)
+         VALUES ($1,$2,$3,$4,'2026-01-01','Mining','Operator')`,
+        [employeeId, TENANT_A, `EMP-RLS-${Date.now().toString().slice(-6)}`, 'RLS Employee']
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM hrms_employees WHERE id = $1`, [employeeId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM hrms_employees WHERE id = $1`, [employeeId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'HRMS employees RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('HRMS employees RLS hides rows from other tenant', false, error.message);
+  }
+
   // Cleanup test rows
   try {
     await deleteCompanyCrossTenantAttempt(TENANT_A, COMPANY_A);

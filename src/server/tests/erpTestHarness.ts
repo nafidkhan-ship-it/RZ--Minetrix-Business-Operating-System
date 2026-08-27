@@ -34,6 +34,14 @@ export async function loginOtherTenant(app: Express): Promise<ErpAuthContext> {
   return { app, token, header: { Authorization: `Bearer ${token}` } };
 }
 
+export async function loginQuarryManager(app: Express): Promise<ErpAuthContext> {
+  const loginRes = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'quarry.manager@racezoneventures.com', password: 'ManagerPass2026!' });
+  const token = loginRes.body?.data?.token as string;
+  return { app, token, header: { Authorization: `Bearer ${token}` } };
+}
+
 export function uniqueCode(prefix: string): string {
   return `${prefix}-${Date.now().toString().slice(-8)}-${Math.floor(Math.random() * 1000)}`;
 }
