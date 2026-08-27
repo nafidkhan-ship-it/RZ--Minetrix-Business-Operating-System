@@ -86,6 +86,18 @@ export class FleetOperationRepository {
     });
   }
 
+  async getByGatePass(tenantId: string, gatePassId: string): Promise<FleetOperationRecord | null> {
+    return withTenantTransaction(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fleet_operations
+         WHERE tenant_id = $1 AND gate_pass_id = $2 AND deleted_at IS NULL
+         LIMIT 1`,
+        [tenantId, gatePassId]
+      );
+      return result.rows[0] ? this.mapOperation(result.rows[0]) : null;
+    });
+  }
+
   async getOperation(tenantId: string, operationId: string): Promise<FleetOperationRecord | null> {
     return withTenantTransaction(tenantId, async (client) => {
       const result = await client.query(

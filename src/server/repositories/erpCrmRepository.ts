@@ -255,8 +255,29 @@ export class ErpCrmRepository {
           ]
         );
         const available = stock.rows[0] ? Number(stock.rows[0].quantity) : 0;
-        if (available < Number(row.quantity)) {
-          throw new ErpServiceError('INSUFFICIENT_STOCK', 'Insufficient stock to confirm this order.', 409);
+        const reserved = await client.query(
+          `SELECT COALESCE(SUM(ol.quantity), 0) AS qty
+           FROM erp_order_lines ol
+           JOIN erp_orders o ON o.id = ol.order_id AND o.tenant_id = ol.tenant_id
+           WHERE ol.tenant_id = $1
+             AND o.quarry_id = $2
+             AND o.status IN ('CONFIRMED', 'ALLOCATED')
+             AND o.id <> $3
+             AND ol.product_id = $4
+             AND COALESCE(ol.product_size_id, '') = COALESCE($5, '')
+             AND COALESCE(ol.location_id, '') = COALESCE($6, '')`,
+          [
+            tenantId,
+            orderRes.rows[0].quarry_id,
+            orderId,
+            row.product_id,
+            row.product_size_id,
+            row.location_id
+          ]
+        );
+        const remaining = available - Number(reserved.rows[0].qty);
+        if (remaining < Number(row.quantity)) {
+          throw new ErpServiceError('INSUFFICIENT_STOCK', 'Insufficient available stock to confirm this order.', 409);
         }
       }
       await client.query(

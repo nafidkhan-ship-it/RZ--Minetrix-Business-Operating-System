@@ -2,6 +2,11 @@ import { isPostgresEnabled } from '../db/postgresPool.js';
 import { ErpCatalogRepository } from '../repositories/erpCatalogRepository.js';
 import { ErpCrmRepository } from '../repositories/erpCrmRepository.js';
 import { ErpOperationsRepository } from '../repositories/erpOperationsRepository.js';
+import { FleetDriverRepository } from '../repositories/fleetDriverRepository.js';
+import { FleetMaintenanceRepository } from '../repositories/fleetMaintenanceRepository.js';
+import { FleetOperationRepository } from '../repositories/fleetOperationRepository.js';
+import { FleetVehicleDocumentRepository } from '../repositories/fleetVehicleDocumentRepository.js';
+import { FleetVehicleRepository } from '../repositories/fleetVehicleRepository.js';
 import { QuarryRepository } from '../repositories/quarryRepository.js';
 import { ErpServiceError, isUniqueViolation } from './erpErrors.js';
 import { ErpProductionLineInput } from '../db/erp/operationsTypes.js';
@@ -13,6 +18,11 @@ export class ErpOperationsService {
   private operations = new ErpOperationsRepository();
   private crm = new ErpCrmRepository();
   private quarries = new QuarryRepository();
+  private vehicles = new FleetVehicleRepository();
+  private drivers = new FleetDriverRepository();
+  private fleetOperations = new FleetOperationRepository();
+  private fleetDocuments = new FleetVehicleDocumentRepository();
+  private fleetMaintenance = new FleetMaintenanceRepository();
 
   private ensurePostgres(): void {
     if (!isPostgresEnabled()) {
@@ -239,13 +249,30 @@ export class ErpOperationsService {
     return this.operations.listGatePasses(tenantId);
   }
 
-  transitionGatePass(
+  async transitionGatePass(
     tenantId: string,
     gatePassId: string,
     nextStatus: 'APPROVED' | 'ISSUED' | 'CANCELLED',
     actorUserId?: string
   ) {
     this.ensurePostgres();
+    if (nextStatus === 'ISSUED') {
+      const current = await this.operations.getGatePass(tenantId, gatePassId);
+      if (current?.vehicleId && current.driverId) {
+        const existing = await this.fleetOperations.getByGatePass(tenantId, current.id);
+        if (!existing) {
+          await this.fleetOperations.createOperation(tenantId, {
+            operationNumber: `OP-${current.gatePassNumber}`.slice(0, 64),
+            vehicleId: current.vehicleId,
+            driverId: current.driverId,
+            gatePassId: current.id,
+            destination: current.destination,
+            status: 'ASSIGNED',
+            createdBy: actorUserId
+          });
+        }
+      }
+    }
     return this.operations.transitionGatePass(tenantId, gatePassId, nextStatus, actorUserId);
   }
 
@@ -333,6 +360,10 @@ export class ErpOperationsService {
     for (const line of input.lines) {
       const product = await this.catalog.findProduct(tenantId, line.productId);
       if (!product) throw new ErpServiceError('NOT_FOUND', 'Product not found.', 404);
+      if (line.productSizeId) {
+        const size = await this.catalog.findProductSize(tenantId, line.productId, line.productSizeId);
+        if (!size) throw new ErpServiceError('NOT_FOUND', 'Product size not found.', 404);
+      }
     }
     try {
       return await this.crm.createOrder(tenantId, input);
@@ -370,10 +401,13 @@ export class ErpOperationsService {
   async createOrderGatePass(
     tenantId: string,
     orderId: string,
-    input: { gatePassNumber: string; vehicleNumber: string; driverName: string; destination?: string; createdBy?: string }
+    input: { gatePassNumber: string; vehicleId: string; driverId: string; destination?: string; createdBy?: string }
   ) {
     this.ensurePostgres();
     const order = await this.getOrder(tenantId, orderId);
+    if (order.status === 'CANCELLED') {
+      throw new ErpServiceError('INVALID_STATUS', 'Cannot fulfill a cancelled order.');
+    }
     if (order.status !== 'CONFIRMED') {
       throw new ErpServiceError('INVALID_STATUS', 'Order must be CONFIRMED before creating a gate pass.');
     }
@@ -383,13 +417,31 @@ export class ErpOperationsService {
     if (!order.lines?.length) {
       throw new ErpServiceError('BAD_REQUEST', 'Order has no lines.');
     }
+    const vehicle = await this.vehicles.getVehicle(tenantId, input.vehicleId);
+    if (!vehicle) throw new ErpServiceError('NOT_FOUND', 'Vehicle not found.', 404);
+    if (vehicle.status !== 'ACTIVE') {
+      throw new ErpServiceError('VEHICLE_UNAVAILABLE', 'Vehicle is not available for operations.', 409);
+    }
+    const driver = await this.drivers.getDriver(tenantId, input.driverId);
+    if (!driver) throw new ErpServiceError('NOT_FOUND', 'Driver not found.', 404);
+    if (driver.status !== 'ACTIVE') {
+      throw new ErpServiceError('DRIVER_UNAVAILABLE', 'Driver is not available for operations.', 409);
+    }
+    if (await this.fleetDocuments.hasExpiredMandatoryDocuments(tenantId, vehicle.id)) {
+      throw new ErpServiceError('DOCUMENT_EXPIRED', 'Vehicle has expired mandatory compliance documents.', 409);
+    }
+    if (await this.fleetMaintenance.hasOpenMaintenance(tenantId, vehicle.id)) {
+      throw new ErpServiceError('VEHICLE_IN_MAINTENANCE', 'Vehicle has open maintenance and cannot be assigned.', 409);
+    }
     const customer = await this.catalog.findCustomer(tenantId, order.customerId);
     const gatePass = await this.createGatePass(tenantId, {
       gatePassNumber: input.gatePassNumber,
       quarryId: order.quarryId,
       customerId: order.customerId,
-      vehicleNumber: input.vehicleNumber,
-      driverName: input.driverName,
+      vehicleNumber: vehicle.registrationNumber,
+      driverName: driver.fullName,
+      vehicleId: vehicle.id,
+      driverId: driver.id,
       destination: input.destination || customer?.destination,
       createdBy: input.createdBy,
       orderId,

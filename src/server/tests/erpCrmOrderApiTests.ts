@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { isPostgresEnabled } from '../db/postgresPool.js';
-import { createErpTestApp, loginErpAdmin, loginOtherTenant, uniqueCode } from './erpTestHarness.js';
+import { createErpTestApp, loginErpAdmin, loginOtherTenant, seedCompliantFleet, uniqueCode } from './erpTestHarness.js';
 import { ModuleTestResult } from './erpProductionApiTests.js';
 
 export async function runErpCrmOrderApiTests() {
@@ -131,6 +131,8 @@ export async function runErpCrmOrderApiTests() {
     ? stockBefore.body.data.find((row: { productId: string }) => row.productId === product.body.data.id)?.quantity
     : undefined;
 
+  const fleet = await seedCompliantFleet(ctx);
+
   const confirmed = await request(app).post(`/api/v1/erp/orders/${draftOrder.body.data.id}/confirm`).set(ctx.header);
   results.push({
     testName: 'Confirm order with stock does not consume inventory',
@@ -155,13 +157,13 @@ export async function runErpCrmOrderApiTests() {
     .set(ctx.header)
     .send({
       gatePassNumber: uniqueCode('GPO'),
-      vehicleNumber: 'KA-19-CRM-01',
-      driverName: 'Order Driver',
+      vehicleId: fleet.vehicleId,
+      driverId: fleet.driverId,
       destination: 'Site A'
     });
   results.push({
     testName: 'Confirmed order creates DRAFT gate pass without double stock move',
-    passed: gpFromOrder.status === 201 && gpFromOrder.body?.data?.status === 'DRAFT' && gpFromOrder.body?.data?.orderId === draftOrder.body.data.id,
+    passed: gpFromOrder.status === 201 && gpFromOrder.body?.data?.status === 'DRAFT' && gpFromOrder.body?.data?.orderId === draftOrder.body.data.id && gpFromOrder.body?.data?.vehicleId === fleet.vehicleId,
     message: `status=${gpFromOrder.status} gpStatus=${gpFromOrder.body?.data?.status}`
   });
 
@@ -170,8 +172,8 @@ export async function runErpCrmOrderApiTests() {
     .set(ctx.header)
     .send({
       gatePassNumber: uniqueCode('GPO2'),
-      vehicleNumber: 'KA-19-CRM-02',
-      driverName: 'Order Driver'
+      vehicleId: fleet.vehicleId,
+      driverId: fleet.driverId
     });
   results.push({
     testName: 'Second gate pass from the same order is rejected',

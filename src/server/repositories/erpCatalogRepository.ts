@@ -87,6 +87,17 @@ export class ErpCatalogRepository {
     });
   }
 
+  async findProductSize(tenantId: string, productId: string, productSizeId: string): Promise<ErpProductSizeRecord | null> {
+    return withTenantTransaction(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM erp_product_sizes
+         WHERE tenant_id = $1 AND product_id = $2 AND id = $3 AND status = 'ACTIVE' LIMIT 1`,
+        [tenantId, productId, productSizeId]
+      );
+      return result.rows[0] ? this.mapSize(result.rows[0]) : null;
+    });
+  }
+
   async listProductSizes(tenantId: string, productId: string): Promise<ErpProductSizeRecord[]> {
     return withTenantTransaction(tenantId, async (client) => {
       const result = await client.query(

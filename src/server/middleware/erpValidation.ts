@@ -237,6 +237,12 @@ export function validateCreateSettlementBody(req: CustomRequest, res: Response, 
   if (typeof body.landParcelId !== 'string' || !SAFE_ID.test(body.landParcelId)) return bad(res, 'Invalid landParcelId.');
   if (typeof body.quarryId !== 'string' || !SAFE_ID.test(body.quarryId)) return bad(res, 'Invalid quarryId.');
   if (body.basis !== 'PRODUCTION' && body.basis !== 'DISPATCH') return bad(res, 'basis must be PRODUCTION or DISPATCH.');
+  if (body.basis === 'DISPATCH' && (typeof body.dispatchId !== 'string' || !SAFE_ID.test(body.dispatchId))) {
+    return bad(res, 'dispatchId is required for DISPATCH settlements.');
+  }
+  if (body.basis === 'PRODUCTION' && body.productionBatchId && (typeof body.productionBatchId !== 'string' || !SAFE_ID.test(body.productionBatchId))) {
+    return bad(res, 'Invalid productionBatchId.');
+  }
   if (body.deductions !== undefined && (typeof body.deductions !== 'number' || body.deductions < 0)) {
     return bad(res, 'deductions must be a non-negative number.');
   }
@@ -245,7 +251,6 @@ export function validateCreateSettlementBody(req: CustomRequest, res: Response, 
     landParcelId: body.landParcelId,
     quarryId: body.quarryId,
     basis: body.basis,
-    quantity: body.quantity,
     productionBatchId: body.productionBatchId,
     dispatchId: body.dispatchId,
     deductions: body.deductions,
@@ -337,13 +342,12 @@ export function validateCreateOrderGatePassBody(req: CustomRequest, res: Respons
   const body = req.body || {};
   const numErr = requireCode(body.gatePassNumber, 'gatePassNumber');
   if (numErr) return bad(res, numErr);
-  if (typeof body.vehicleNumber !== 'string' || body.vehicleNumber.trim().length < 2) return bad(res, 'vehicleNumber is required.');
-  const driverErr = requireName(body.driverName, 'driverName');
-  if (driverErr) return bad(res, driverErr);
+  if (typeof body.vehicleId !== 'string' || !SAFE_ID.test(body.vehicleId)) return bad(res, 'vehicleId is required.');
+  if (typeof body.driverId !== 'string' || !SAFE_ID.test(body.driverId)) return bad(res, 'driverId is required.');
   req.body = {
     gatePassNumber: String(body.gatePassNumber).trim().toUpperCase(),
-    vehicleNumber: String(body.vehicleNumber).trim().toUpperCase(),
-    driverName: String(body.driverName).trim(),
+    vehicleId: body.vehicleId,
+    driverId: body.driverId,
     destination: typeof body.destination === 'string' ? body.destination.trim() : undefined
   };
   next();

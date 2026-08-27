@@ -80,3 +80,47 @@ export async function seedQuarryProduct(ctx: ErpAuthContext) {
     priceId: price.body.data.id as string
   };
 }
+
+export async function seedCompliantFleet(ctx: ErpAuthContext) {
+  const vehicle = await request(ctx.app)
+    .post('/api/v1/fleet/vehicles')
+    .set(ctx.header)
+    .send({
+      registrationNumber: uniqueCode('KA19').replace(/\./g, ''),
+      vehicleType: 'TIPPER',
+      make: 'Tata',
+      model: 'Signa',
+      manufacturingYear: 2022,
+      fuelType: 'DIESEL',
+      ownershipType: 'COMPANY',
+      capacity: 28
+    });
+  const driver = await request(ctx.app)
+    .post('/api/v1/fleet/drivers')
+    .set(ctx.header)
+    .send({
+      fullName: 'Lifecycle Driver',
+      licenseNumber: uniqueCode('DL').replace(/\./g, '-'),
+      licenseClass: 'HMV',
+      status: 'ACTIVE'
+    });
+  const vehicleId = vehicle.body.data.id as string;
+  for (const documentType of ['INSURANCE', 'FITNESS', 'PERMIT']) {
+    await request(ctx.app)
+      .post('/api/v1/fleet/vehicle-documents')
+      .set(ctx.header)
+      .send({
+        vehicleId,
+        documentType,
+        documentNumber: uniqueCode(documentType.slice(0, 3)).replace(/\./g, '-'),
+        issueDate: '2025-01-01',
+        expiryDate: '2027-12-31'
+      });
+  }
+  return {
+    vehicleId,
+    driverId: driver.body.data.id as string,
+    registrationNumber: vehicle.body.data.registrationNumber as string,
+    driverName: driver.body.data.fullName as string
+  };
+}

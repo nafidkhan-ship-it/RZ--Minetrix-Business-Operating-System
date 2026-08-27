@@ -22,6 +22,7 @@
     "test:erp-dispatch": "tsx scripts/test-erp-dispatch.ts",
     "test:erp-settlement": "tsx scripts/test-erp-settlement.ts",
     "test:erp-crm-orders": "tsx scripts/test-erp-crm-orders.ts",
+    "test:erp-lifecycle": "tsx scripts/test-erp-lifecycle.ts",
     "test:hrms": "tsx scripts/test-hrms.ts",
     "test:fleet-vehicles": "tsx scripts/test-fleet-vehicles.ts",
     "test:fleet-drivers": "tsx scripts/test-fleet-drivers.ts",

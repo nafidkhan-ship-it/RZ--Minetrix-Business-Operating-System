@@ -201,6 +201,9 @@ export interface ErpGatePassRecord {
   customerId: string;
   vehicleNumber: string;
   driverName: string;
+  vehicleId?: string;
+  driverId?: string;
+  orderId?: string;
   destination?: string;
   status: GatePassStatus;
   dispatchId?: string;
