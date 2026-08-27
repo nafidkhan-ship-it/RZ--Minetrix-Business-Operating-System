@@ -34,7 +34,7 @@ async function startServer() {
   if (!isProduction()) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa'
+      appType: 'custom'
     });
     app.use(vite.middlewares);
     console.log('[SERVER] Vite development middleware attached.');
