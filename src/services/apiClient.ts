@@ -470,6 +470,8 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async getCustomerHistory(customerId: string): Promise<ApiResponse> {
     try {
       const res = await fetch(`/api/v1/erp/customers/${customerId}/history`, { headers: this.getHeaders() });
       return await res.json();
