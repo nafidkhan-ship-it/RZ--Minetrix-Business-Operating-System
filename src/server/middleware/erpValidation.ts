@@ -148,7 +148,8 @@ export function validateCreateCustomerBody(req: CustomRequest, res: Response, ne
     code: String(body.code).trim().toUpperCase(),
     name: String(body.name).trim(),
     destination: typeof body.destination === 'string' ? body.destination.trim() : undefined,
-    phone: typeof body.phone === 'string' ? body.phone.trim() : undefined
+    phone: typeof body.phone === 'string' ? body.phone.trim() : undefined,
+    email: typeof body.email === 'string' ? body.email.trim() : undefined
   };
   next();
 }
@@ -267,6 +268,83 @@ export function validateAdjustmentBody(req: CustomRequest, res: Response, next: 
     quantity: body.quantity,
     quantityUom: body.quantityUom,
     notes: typeof body.notes === 'string' ? body.notes.trim() : undefined
+  };
+  next();
+}
+
+export function validateCreateContactBody(req: CustomRequest, res: Response, next: NextFunction) {
+  const body = req.body || {};
+  if (typeof body.customerId !== 'string' || !SAFE_ID.test(body.customerId)) return bad(res, 'Invalid customerId.');
+  const nameErr = requireName(body.fullName, 'fullName');
+  if (nameErr) return bad(res, nameErr);
+  req.body = {
+    customerId: body.customerId,
+    fullName: String(body.fullName).trim(),
+    roleTitle: typeof body.roleTitle === 'string' ? body.roleTitle.trim() : undefined,
+    phone: typeof body.phone === 'string' ? body.phone.trim() : undefined,
+    email: typeof body.email === 'string' ? body.email.trim() : undefined
+  };
+  next();
+}
+
+export function validateCreateLeadBody(req: CustomRequest, res: Response, next: NextFunction) {
+  const body = req.body || {};
+  const codeErr = requireCode(body.code, 'code');
+  if (codeErr) return bad(res, codeErr);
+  const nameErr = requireName(body.companyName, 'companyName');
+  if (nameErr) return bad(res, nameErr);
+  req.body = {
+    code: String(body.code).trim().toUpperCase(),
+    companyName: String(body.companyName).trim(),
+    contactName: typeof body.contactName === 'string' ? body.contactName.trim() : undefined,
+    phone: typeof body.phone === 'string' ? body.phone.trim() : undefined,
+    email: typeof body.email === 'string' ? body.email.trim() : undefined,
+    source: typeof body.source === 'string' ? body.source.trim() : undefined,
+    notes: typeof body.notes === 'string' ? body.notes.trim() : undefined
+  };
+  next();
+}
+
+export function validateCreateOrderBody(req: CustomRequest, res: Response, next: NextFunction) {
+  const body = req.body || {};
+  const numErr = requireCode(body.orderNumber, 'orderNumber');
+  if (numErr) return bad(res, numErr);
+  if (typeof body.customerId !== 'string' || !SAFE_ID.test(body.customerId)) return bad(res, 'Invalid customerId.');
+  if (typeof body.quarryId !== 'string' || !SAFE_ID.test(body.quarryId)) return bad(res, 'Invalid quarryId.');
+  if (!Array.isArray(body.lines) || body.lines.length === 0) return bad(res, 'lines must be a non-empty array.');
+  for (const line of body.lines) {
+    if (!line || typeof line !== 'object') return bad(res, 'Each line must be an object.');
+    if (typeof line.productId !== 'string' || !SAFE_ID.test(line.productId)) return bad(res, 'Each line requires a valid productId.');
+    if (typeof line.quantity !== 'number' || line.quantity <= 0) return bad(res, 'Each line quantity must be greater than zero.');
+    if (typeof line.unitPrice !== 'number' || line.unitPrice < 0) return bad(res, 'Each line unitPrice must be a non-negative number.');
+    if (line.quantityUom && (typeof line.quantityUom !== 'string' || !UOMS.has(line.quantityUom))) return bad(res, 'Invalid quantityUom.');
+  }
+  if (body.taxAmount !== undefined && (typeof body.taxAmount !== 'number' || body.taxAmount < 0)) {
+    return bad(res, 'taxAmount must be a non-negative number.');
+  }
+  req.body = {
+    orderNumber: String(body.orderNumber).trim().toUpperCase(),
+    customerId: body.customerId,
+    quarryId: body.quarryId,
+    notes: typeof body.notes === 'string' ? body.notes.trim() : undefined,
+    taxAmount: body.taxAmount,
+    lines: body.lines
+  };
+  next();
+}
+
+export function validateCreateOrderGatePassBody(req: CustomRequest, res: Response, next: NextFunction) {
+  const body = req.body || {};
+  const numErr = requireCode(body.gatePassNumber, 'gatePassNumber');
+  if (numErr) return bad(res, numErr);
+  if (typeof body.vehicleNumber !== 'string' || body.vehicleNumber.trim().length < 2) return bad(res, 'vehicleNumber is required.');
+  const driverErr = requireName(body.driverName, 'driverName');
+  if (driverErr) return bad(res, driverErr);
+  req.body = {
+    gatePassNumber: String(body.gatePassNumber).trim().toUpperCase(),
+    vehicleNumber: String(body.vehicleNumber).trim().toUpperCase(),
+    driverName: String(body.driverName).trim(),
+    destination: typeof body.destination === 'string' ? body.destination.trim() : undefined
   };
   next();
 }

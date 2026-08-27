@@ -271,6 +271,10 @@ export class DatabaseStore {
       { id: 'p18', code: 'mining:dispatch:create', module: 'Mining', action: 'create', description: 'Create dispatches' },
       { id: 'p19', code: 'mining:settlement:view', module: 'Mining', action: 'view', description: 'View landowner settlements' },
       { id: 'p20', code: 'mining:settlement:create', module: 'Mining', action: 'create', description: 'Create landowner settlements' },
+      { id: 'p21', code: 'mining:crm:view', module: 'Mining', action: 'view', description: 'View CRM customers, contacts, and leads' },
+      { id: 'p22', code: 'mining:crm:create', module: 'Mining', action: 'create', description: 'Create CRM customers, contacts, and leads' },
+      { id: 'p23', code: 'mining:order:view', module: 'Mining', action: 'view', description: 'View sales orders' },
+      { id: 'p24', code: 'mining:order:create', module: 'Mining', action: 'create', description: 'Create and confirm sales orders' },
       { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
@@ -400,7 +404,7 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
-    const quarryPermIds = ['p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20'];
+    const quarryPermIds = ['p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24'];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);
       if (!perm) continue;

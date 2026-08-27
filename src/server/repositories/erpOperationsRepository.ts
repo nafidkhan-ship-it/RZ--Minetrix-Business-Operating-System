@@ -242,6 +242,7 @@ export class ErpOperationsRepository {
       destination?: string;
       notes?: string;
       createdBy?: string;
+      orderId?: string;
       lines: Line[];
     }
   ): Promise<ErpGatePassRecord> {
@@ -252,8 +253,8 @@ export class ErpOperationsRepository {
       await client.query(
         `INSERT INTO erp_gate_passes (
           id, tenant_id, gate_pass_number, quarry_id, customer_id, vehicle_number,
-          driver_name, destination, status, notes, created_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10)`,
+          driver_name, destination, status, notes, created_by, order_id
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10,$11)`,
         [
           id,
           tenantId,
@@ -264,7 +265,8 @@ export class ErpOperationsRepository {
           input.driverName.trim(),
           input.destination || null,
           input.notes || null,
-          input.createdBy || null
+          input.createdBy || null,
+          input.orderId || null
         ]
       );
 
@@ -470,6 +472,15 @@ export class ErpOperationsRepository {
            WHERE tenant_id = $1 AND id = $2`,
           [tenantId, input.gatePassId, dispatchId]
         );
+
+        if (gatePass.order_id) {
+          await client.query(
+            `UPDATE erp_orders
+             SET status = 'DISPATCHED', updated_at = NOW()
+             WHERE tenant_id = $1 AND id = $2 AND status IN ('CONFIRMED', 'ALLOCATED')`,
+            [tenantId, gatePass.order_id]
+          );
+        }
 
         if (input.idempotencyKey) {
           await client.query(

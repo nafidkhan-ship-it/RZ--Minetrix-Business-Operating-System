@@ -1,5 +1,6 @@
 import { isPostgresEnabled } from '../db/postgresPool.js';
 import { ErpCatalogRepository } from '../repositories/erpCatalogRepository.js';
+import { ErpCrmRepository } from '../repositories/erpCrmRepository.js';
 import { ErpOperationsRepository } from '../repositories/erpOperationsRepository.js';
 import { QuarryRepository } from '../repositories/quarryRepository.js';
 import { ErpServiceError, isUniqueViolation } from './erpErrors.js';
@@ -10,6 +11,7 @@ export { ErpServiceError };
 export class ErpOperationsService {
   private catalog = new ErpCatalogRepository();
   private operations = new ErpOperationsRepository();
+  private crm = new ErpCrmRepository();
   private quarries = new QuarryRepository();
 
   private ensurePostgres(): void {
@@ -276,5 +278,119 @@ export class ErpOperationsService {
   listSettlements(tenantId: string) {
     this.ensurePostgres();
     return this.operations.listSettlements(tenantId);
+  }
+
+  createContact(tenantId: string, input: Parameters<ErpCrmRepository['createContact']>[1]) {
+    this.ensurePostgres();
+    return this.crm.createContact(tenantId, input);
+  }
+
+  listContacts(tenantId: string, customerId: string) {
+    this.ensurePostgres();
+    return this.crm.listContacts(tenantId, customerId);
+  }
+
+  async createLead(tenantId: string, input: Parameters<ErpCrmRepository['createLead']>[1]) {
+    this.ensurePostgres();
+    try {
+      return await this.crm.createLead(tenantId, input);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ErpServiceError('DUPLICATE_LEAD_CODE', 'Lead code already exists.', 409);
+      }
+      throw error;
+    }
+  }
+
+  listLeads(tenantId: string) {
+    this.ensurePostgres();
+    return this.crm.listLeads(tenantId);
+  }
+
+  convertLead(tenantId: string, leadId: string) {
+    this.ensurePostgres();
+    return this.crm.convertLead(tenantId, leadId);
+  }
+
+  getCustomerHistory(tenantId: string, customerId: string) {
+    this.ensurePostgres();
+    return this.crm.getCustomerHistory(tenantId, customerId);
+  }
+
+  async createOrder(tenantId: string, input: Parameters<ErpCrmRepository['createOrder']>[1]) {
+    this.ensurePostgres();
+    const quarry = await this.quarries.findById(tenantId, input.quarryId);
+    if (!quarry) throw new ErpServiceError('NOT_FOUND', 'Quarry not found.', 404);
+    const customer = await this.catalog.findCustomer(tenantId, input.customerId);
+    if (!customer) throw new ErpServiceError('NOT_FOUND', 'Customer not found.', 404);
+    try {
+      return await this.crm.createOrder(tenantId, input);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ErpServiceError('DUPLICATE_ORDER_NUMBER', `Order [${input.orderNumber}] already exists.`, 409);
+      }
+      throw error;
+    }
+  }
+
+  getOrder(tenantId: string, orderId: string) {
+    this.ensurePostgres();
+    return this.crm.getOrder(tenantId, orderId).then((order) => {
+      if (!order) throw new ErpServiceError('NOT_FOUND', 'Order not found.', 404);
+      return order;
+    });
+  }
+
+  listOrders(tenantId: string, customerId?: string) {
+    this.ensurePostgres();
+    return this.crm.listOrders(tenantId, customerId);
+  }
+
+  confirmOrder(tenantId: string, orderId: string) {
+    this.ensurePostgres();
+    return this.crm.confirmOrder(tenantId, orderId);
+  }
+
+  cancelOrder(tenantId: string, orderId: string) {
+    this.ensurePostgres();
+    return this.crm.cancelOrder(tenantId, orderId);
+  }
+
+  async createOrderGatePass(
+    tenantId: string,
+    orderId: string,
+    input: { gatePassNumber: string; vehicleNumber: string; driverName: string; destination?: string; createdBy?: string }
+  ) {
+    this.ensurePostgres();
+    const order = await this.getOrder(tenantId, orderId);
+    if (order.status !== 'CONFIRMED') {
+      throw new ErpServiceError('INVALID_STATUS', 'Order must be CONFIRMED before creating a gate pass.');
+    }
+    if (order.gatePassId) {
+      throw new ErpServiceError('DUPLICATE_GATE_PASS', 'This order already has a gate pass.', 409);
+    }
+    if (!order.lines?.length) {
+      throw new ErpServiceError('BAD_REQUEST', 'Order has no lines.');
+    }
+    const customer = await this.catalog.findCustomer(tenantId, order.customerId);
+    const gatePass = await this.createGatePass(tenantId, {
+      gatePassNumber: input.gatePassNumber,
+      quarryId: order.quarryId,
+      customerId: order.customerId,
+      vehicleNumber: input.vehicleNumber,
+      driverName: input.driverName,
+      destination: input.destination || customer?.destination,
+      createdBy: input.createdBy,
+      orderId,
+      lines: order.lines.map((line) => ({
+        productId: line.productId,
+        productSizeId: line.productSizeId,
+        locationId: line.locationId,
+        quantity: line.quantity,
+        quantityUom: line.quantityUom
+      }))
+    });
+    await this.crm.attachGatePass(tenantId, orderId, gatePass.id);
+    return { ...gatePass, orderId };
   }
 }

@@ -267,14 +267,15 @@ export class ErpCatalogRepository {
     name: string;
     destination?: string;
     phone?: string;
+    email?: string;
   }): Promise<ErpCustomerRecord> {
     const id = generateUuidV7();
     return withTenantTransaction(tenantId, async (client) => {
       const result = await client.query(
-        `INSERT INTO erp_customers (id, tenant_id, code, name, destination, phone)
-         VALUES ($1,$2,$3,$4,$5,$6)
+        `INSERT INTO erp_customers (id, tenant_id, code, name, destination, phone, email)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
          RETURNING *`,
-        [id, tenantId, input.code.trim().toUpperCase(), input.name.trim(), input.destination || null, input.phone || null]
+        [id, tenantId, input.code.trim().toUpperCase(), input.name.trim(), input.destination || null, input.phone || null, input.email || null]
       );
       return this.mapCustomer(result.rows[0]);
     });
@@ -380,6 +381,7 @@ export class ErpCatalogRepository {
       name: String(row.name),
       destination: row.destination ? String(row.destination) : undefined,
       phone: row.phone ? String(row.phone) : undefined,
+      email: row.email ? String(row.email) : undefined,
       status: String(row.status)
     };
   }

@@ -19,7 +19,11 @@ import {
   validateCreateProductSizeBody,
   validateCreateProductionBody,
   validateCreateSettlementBody,
-  validateCreateSettlementRateBody
+  validateCreateSettlementRateBody,
+  validateCreateContactBody,
+  validateCreateLeadBody,
+  validateCreateOrderBody,
+  validateCreateOrderGatePassBody
 } from '../middleware/erpValidation.js';
 import { ErpOperationsService, ErpServiceError } from '../services/erpOperationsService.js';
 
@@ -57,6 +61,10 @@ const authViewDispatch = [authenticateJwt, enforceTenantContext, requirePermissi
 const authWriteDispatch = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('mining:dispatch:create')] as const;
 const authViewSettlement = [authenticateJwt, enforceTenantContext, requirePermission('mining:settlement:view')] as const;
 const authWriteSettlement = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('mining:settlement:create')] as const;
+const authViewCrm = [authenticateJwt, enforceTenantContext, requirePermission('mining:crm:view')] as const;
+const authWriteCrm = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('mining:crm:create')] as const;
+const authViewOrder = [authenticateJwt, enforceTenantContext, requirePermission('mining:order:view')] as const;
+const authWriteOrder = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('mining:order:create')] as const;
 
 erpOperationsRouter.get('/products', ...authViewProduct, async (req: CustomRequest, res: Response) => {
   try {
@@ -361,6 +369,111 @@ erpOperationsRouter.post('/settlements', ...authWriteSettlement, validateCreateS
       createdBy: req.user!.userId
     });
     return res.status(201).json({ success: true, data: settlement });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/contacts', ...authWriteCrm, validateCreateContactBody, async (req: CustomRequest, res: Response) => {
+  try {
+    const contact = await erp.createContact(req.user!.tenantId, req.body);
+    return res.status(201).json({ success: true, data: contact });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.get('/customers/:id/contacts', ...authViewCrm, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.listContacts(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.get('/customers/:id/history', ...authViewCrm, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.getCustomerHistory(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.get('/leads', ...authViewCrm, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.listLeads(req.user!.tenantId) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/leads', ...authWriteCrm, validateCreateLeadBody, async (req: CustomRequest, res: Response) => {
+  try {
+    const lead = await erp.createLead(req.user!.tenantId, { ...req.body, createdBy: req.user!.userId });
+    return res.status(201).json({ success: true, data: lead });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/leads/:id/convert', ...authWriteCrm, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    const lead = await erp.convertLead(req.user!.tenantId, req.params.id);
+    return res.json({ success: true, data: lead });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.get('/orders', ...authViewOrder, async (req: CustomRequest, res: Response) => {
+  try {
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined;
+    return res.json({ success: true, data: await erp.listOrders(req.user!.tenantId, customerId) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/orders', ...authWriteOrder, validateCreateOrderBody, async (req: CustomRequest, res: Response) => {
+  try {
+    const order = await erp.createOrder(req.user!.tenantId, { ...req.body, createdBy: req.user!.userId });
+    return res.status(201).json({ success: true, data: order });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.get('/orders/:id', ...authViewOrder, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.getOrder(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/orders/:id/confirm', ...authWriteOrder, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.confirmOrder(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/orders/:id/cancel', ...authWriteOrder, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.cancelOrder(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
+erpOperationsRouter.post('/orders/:id/gate-pass', ...authWriteGatePass, validateResourceIdParam('id'), validateCreateOrderGatePassBody, async (req: CustomRequest, res: Response) => {
+  try {
+    const gatePass = await erp.createOrderGatePass(req.user!.tenantId, req.params.id, {
+      ...req.body,
+      createdBy: req.user!.userId
+    });
+    return res.status(201).json({ success: true, data: gatePass });
   } catch (error) {
     return handleErpError(error, res);
   }

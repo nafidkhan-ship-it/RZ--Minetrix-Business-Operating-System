@@ -98,6 +98,17 @@ export const MiningOperationsPhase17Section: React.FC = () => {
   const [gatePasses, setGatePasses] = useState<Array<{ id: string; gatePassNumber: string; status: string }>>([]);
   const [settlements, setSettlements] = useState<Array<{ id: string; settlementNumber: string; grossAmount: number; netAmount: number; quantity: number }>>([]);
   const [auditEntries, setAuditEntries] = useState<Array<{ action: string; module?: string; resource?: string; status?: string; createdAt: string }>>([]);
+  const [crmOrders, setCrmOrders] = useState<Array<{ id: string; orderNumber: string; status: string; totalAmount: number }>>([]);
+  const [crmForm, setCrmForm] = useState({
+    companyName: '',
+    contactName: '',
+    quarryId: '',
+    productId: '',
+    quantity: 4,
+    unitPrice: 640,
+    vehicleNumber: '',
+    driverName: ''
+  });
   const [productForm, setProductForm] = useState({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
   const [productionForm, setProductionForm] = useState({
     quarryId: '',
@@ -150,14 +161,15 @@ export const MiningOperationsPhase17Section: React.FC = () => {
 
   const loadErpOperations = useCallback(async () => {
     if (!apiClient.getAuthToken()) return;
-    const [products, batches, stock, parcels, passes, stmts, audit] = await Promise.all([
+    const [products, batches, stock, parcels, passes, stmts, audit, orders] = await Promise.all([
       apiClient.listProducts(),
       apiClient.listProductionBatches(),
       apiClient.listStockBalances(),
       apiClient.listLandParcels(),
       apiClient.listGatePasses(),
       apiClient.listSettlements(),
-      apiClient.getAuditLogs()
+      apiClient.getAuditLogs(),
+      apiClient.listOrders()
     ]);
     if (products.success && Array.isArray(products.data)) setErpProducts(products.data);
     if (batches.success && Array.isArray(batches.data)) setProductionBatches(batches.data);
@@ -166,6 +178,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     if (passes.success && Array.isArray(passes.data)) setGatePasses(passes.data);
     if (stmts.success && Array.isArray(stmts.data)) setSettlements(stmts.data);
     if (audit.success && Array.isArray(audit.data)) setAuditEntries(audit.data);
+    if (orders.success && Array.isArray(orders.data)) setCrmOrders(orders.data);
   }, []);
 
   useEffect(() => {
@@ -372,6 +385,65 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       await loadErpOperations();
     } else {
       showToast(settlement.message || 'Failed to create settlement');
+    }
+  };
+
+  const handleLiveCrmOrderFlow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core for CRM orders');
+      return;
+    }
+    if (!crmForm.companyName.trim() || !crmForm.quarryId || !crmForm.productId || !crmForm.vehicleNumber.trim() || !crmForm.driverName.trim()) {
+      showToast('Complete company, quarry, product, vehicle and driver');
+      return;
+    }
+    const lead = await apiClient.createLead({
+      code: `LD-${Date.now().toString().slice(-6)}`,
+      companyName: crmForm.companyName.trim(),
+      contactName: crmForm.contactName.trim() || crmForm.companyName.trim(),
+      source: 'UI'
+    });
+    if (!lead.success) {
+      showToast(lead.message || 'Failed to create lead');
+      return;
+    }
+    const converted = await apiClient.convertLead(lead.data.id);
+    if (!converted.success || !converted.data?.convertedCustomerId) {
+      showToast(converted.message || 'Failed to convert lead');
+      return;
+    }
+    await apiClient.createContact({
+      customerId: converted.data.convertedCustomerId,
+      fullName: crmForm.contactName.trim() || crmForm.companyName.trim(),
+      roleTitle: 'Primary'
+    });
+    const order = await apiClient.createOrder({
+      orderNumber: `SO-${Date.now().toString().slice(-8)}`,
+      customerId: converted.data.convertedCustomerId,
+      quarryId: crmForm.quarryId,
+      lines: [{ productId: crmForm.productId, quantity: Number(crmForm.quantity), unitPrice: Number(crmForm.unitPrice), quantityUom: 'TON' }]
+    });
+    if (!order.success) {
+      showToast(order.message || 'Failed to create order');
+      return;
+    }
+    const confirmed = await apiClient.confirmOrder(order.data.id);
+    if (!confirmed.success) {
+      showToast(confirmed.message || 'Failed to confirm order (need stock)');
+      return;
+    }
+    const gp = await apiClient.createOrderGatePass(order.data.id, {
+      gatePassNumber: `GP-SO-${Date.now().toString().slice(-6)}`,
+      vehicleNumber: crmForm.vehicleNumber,
+      driverName: crmForm.driverName,
+      destination: 'Order delivery'
+    });
+    if (gp.success) {
+      showToast(`Order ${order.data.orderNumber} confirmed → gate pass ${gp.data.gatePassNumber} DRAFT`);
+      await loadErpOperations();
+    } else {
+      showToast(gp.message || 'Failed to create order gate pass');
     }
   };
 
@@ -990,6 +1062,34 @@ export const MiningOperationsPhase17Section: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </div>
+            <form onSubmit={handleLiveCrmOrderFlow} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs border-t border-slate-800 pt-4">
+              <h4 className="md:col-span-4 text-amber-300 font-bold">Live CRM → Order → Gate Pass</h4>
+              <input placeholder="Company / lead" value={crmForm.companyName} onChange={(e) => setCrmForm({ ...crmForm, companyName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Contact name" value={crmForm.contactName} onChange={(e) => setCrmForm({ ...crmForm, contactName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <select value={crmForm.quarryId} onChange={(e) => setCrmForm({ ...crmForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Quarry</option>
+                {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
+              </select>
+              <select value={crmForm.productId} onChange={(e) => setCrmForm({ ...crmForm, productId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Product</option>
+                {erpProducts.map((product) => <option key={product.id} value={product.id}>{product.code}</option>)}
+              </select>
+              <input type="number" min={0.001} step="0.001" value={crmForm.quantity} onChange={(e) => setCrmForm({ ...crmForm, quantity: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <input type="number" min={0} step="0.01" value={crmForm.unitPrice} onChange={(e) => setCrmForm({ ...crmForm, unitPrice: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <input placeholder="Vehicle" value={crmForm.vehicleNumber} onChange={(e) => setCrmForm({ ...crmForm, vehicleNumber: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Driver" value={crmForm.driverName} onChange={(e) => setCrmForm({ ...crmForm, driverName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <button type="submit" className="md:col-span-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">Create Lead, Order, Confirm, Gate Pass</button>
+            </form>
+            <div className="text-xs font-mono">
+              <h4 className="text-blue-300 font-bold mb-2">Live orders</h4>
+              {crmOrders.length === 0 && <p className="text-slate-500">No live orders yet.</p>}
+              {crmOrders.slice(0, 6).map((row) => (
+                <div key={row.id} className="flex justify-between border-b border-slate-800 py-1">
+                  <span className="text-white">{row.orderNumber}</span>
+                  <span className="text-amber-300">{row.status} · ₹{row.totalAmount}</span>
+                </div>
+              ))}
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

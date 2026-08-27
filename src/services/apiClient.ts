@@ -434,6 +434,88 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async createContact(payload: { customerId: string; fullName: string; roleTitle?: string; phone?: string; email?: string }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/contacts', { method: 'POST', headers: this.getHeaders(), body: JSON.stringify(payload) });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createLead(payload: { code: string; companyName: string; contactName?: string; phone?: string; source?: string }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/leads', { method: 'POST', headers: this.getHeaders(), body: JSON.stringify(payload) });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async convertLead(leadId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/leads/${leadId}/convert`, { method: 'POST', headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async getCustomerHistory(customerId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/customers/${customerId}/history`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createOrder(payload: {
+    orderNumber: string;
+    customerId: string;
+    quarryId: string;
+    taxAmount?: number;
+    lines: Array<{ productId: string; quantity: number; unitPrice: number; quantityUom?: string }>;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/orders', { method: 'POST', headers: this.getHeaders(), body: JSON.stringify(payload) });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listOrders(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/orders', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async confirmOrder(orderId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/orders/${orderId}/confirm`, { method: 'POST', headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createOrderGatePass(orderId: string, payload: { gatePassNumber: string; vehicleNumber: string; driverName: string; destination?: string }): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/orders/${orderId}/gate-pass`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();

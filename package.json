@@ -21,6 +21,7 @@
     "test:erp-gate-pass": "tsx scripts/test-erp-gate-pass.ts",
     "test:erp-dispatch": "tsx scripts/test-erp-dispatch.ts",
     "test:erp-settlement": "tsx scripts/test-erp-settlement.ts",
+    "test:erp-crm-orders": "tsx scripts/test-erp-crm-orders.ts",
     "verify:stage5a-live": "bash scripts/stage5a-live-verify.sh",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },

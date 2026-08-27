@@ -4,6 +4,8 @@ export type GatePassStatus = 'DRAFT' | 'APPROVED' | 'ISSUED' | 'CANCELLED' | 'DI
 export type DispatchStatus = 'POSTED' | 'CANCELLED';
 export type SettlementBasis = 'PRODUCTION' | 'DISPATCH';
 export type SettlementStatus = 'DRAFT' | 'POSTED' | 'CANCELLED';
+export type LeadStatus = 'NEW' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
+export type OrderStatus = 'DRAFT' | 'CONFIRMED' | 'ALLOCATED' | 'DISPATCHED' | 'CANCELLED';
 
 export interface ErpProductRecord {
   id: string;
@@ -74,7 +76,67 @@ export interface ErpCustomerRecord {
   name: string;
   destination?: string;
   phone?: string;
+  email?: string;
   status: string;
+}
+
+export interface ErpCustomerContactRecord {
+  id: string;
+  tenantId: string;
+  customerId: string;
+  fullName: string;
+  roleTitle?: string;
+  phone?: string;
+  email?: string;
+  status: string;
+}
+
+export interface ErpLeadRecord {
+  id: string;
+  tenantId: string;
+  code: string;
+  companyName: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  source?: string;
+  notes?: string;
+  status: LeadStatus;
+  convertedCustomerId?: string;
+}
+
+export interface ErpOrderLineInput {
+  productId: string;
+  productSizeId?: string;
+  locationId?: string;
+  quantity: number;
+  quantityUom?: string;
+  unitPrice: number;
+}
+
+export interface ErpOrderRecord {
+  id: string;
+  tenantId: string;
+  orderNumber: string;
+  customerId: string;
+  quarryId: string;
+  status: OrderStatus;
+  currency: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes?: string;
+  gatePassId?: string;
+  lines?: Array<ErpOrderLineInput & { id: string; lineTotal: number }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ErpCustomerHistoryRecord {
+  customer: ErpCustomerRecord;
+  contacts: ErpCustomerContactRecord[];
+  orders: ErpOrderRecord[];
+  convertedFromLead?: ErpLeadRecord;
 }
 
 export interface ErpProductionLineInput {
