@@ -438,7 +438,7 @@ export const HrmsSuiteSection: React.FC = () => {
               <input className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Full name" value={employeeForm.fullName} onChange={(e) => setEmployeeForm({ ...employeeForm, fullName: e.target.value })} required />
               <div className="grid grid-cols-2 gap-2">
                 <input className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Phone" value={employeeForm.phone} onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })} />
-                <input type="date" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={employeeForm.joiningDate} onChange={(e) => setEmployeeForm({ ...employeeForm, joiningDate: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={employeeForm.joiningDate} onChange={(e) => setEmployeeForm({ ...employeeForm, joiningDate: e.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} />
@@ -456,7 +456,7 @@ export const HrmsSuiteSection: React.FC = () => {
                 ))}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <input type="date" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.workDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, workDate: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.workDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, workDate: e.target.value })} />
                 <select className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.status} onChange={(e) => setAttendanceForm({ ...attendanceForm, status: e.target.value })}>
                   {['PRESENT', 'ABSENT', 'HALF_DAY', 'HOLIDAY', 'OFF'].map((status) => (
                     <option key={status} value={status}>{status}</option>
@@ -480,8 +480,8 @@ export const HrmsSuiteSection: React.FC = () => {
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
-                <input type="date" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
-                <input type="date" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.endDate} onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.endDate} onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })} />
               </div>
               <input className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Reason" value={leaveForm.reason} onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })} />
               <button type="submit" className="w-full py-2 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">Request leave</button>
