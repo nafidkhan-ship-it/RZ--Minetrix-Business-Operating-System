@@ -100,10 +100,10 @@ const LICENSE_NO = /^[A-Z0-9-]{4,64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const BADGE = /^[A-Z0-9._-]{2,64}$/;
 
-function parseOptionalId(value: unknown, field: string): { ok: true; value?: string } | { ok: false; message: string } {
-  if (value === undefined || value === null || value === '') return { ok: true, value: undefined };
-  if (typeof value !== 'string' || !SAFE_ID.test(value)) return { ok: false, message: `${field} is invalid.` };
-  return { ok: true, value };
+function parseOptionalId(value: unknown, field: string): { error?: string; value?: string } {
+  if (value === undefined || value === null || value === '') return { value: undefined };
+  if (typeof value !== 'string' || !SAFE_ID.test(value)) return { error: `${field} is invalid.` };
+  return { value };
 }
 
 export function validateCreateDriverBody(req: CustomRequest, res: Response, next: NextFunction) {
@@ -130,9 +130,9 @@ export function validateCreateDriverBody(req: CustomRequest, res: Response, next
     return bad(res, 'badgeCode is invalid.');
   }
   const employeeId = parseOptionalId(body.employeeId, 'employeeId');
-  if (!employeeId.ok) return bad(res, employeeId.message);
+  if (employeeId.error) return bad(res, employeeId.error);
   const assignedVehicleId = parseOptionalId(body.assignedVehicleId, 'assignedVehicleId');
-  if (!assignedVehicleId.ok) return bad(res, assignedVehicleId.message);
+  if (assignedVehicleId.error) return bad(res, assignedVehicleId.error);
   if (body.phone && (typeof body.phone !== 'string' || body.phone.trim().length < 6 || body.phone.trim().length > 32)) {
     return bad(res, 'phone must be between 6 and 32 characters when provided.');
   }
