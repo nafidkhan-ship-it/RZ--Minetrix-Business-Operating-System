@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { createCoreApp } from './src/server/app.js';
-import { notFoundHandler, errorHandler } from './src/server/middleware/errorHandler.js';
+import { errorHandler } from './src/server/middleware/errorHandler.js';
 import { initializeDatabase } from './src/server/db/database.js';
 import { isProduction, validateJwtSecurityConfig, validateSignedUrlSecurityConfig, validateDatabaseConfig } from './src/server/config/securityConfig.js';
 import { getCorsConfigSummary } from './src/server/middleware/corsMiddleware.js';
@@ -34,7 +34,7 @@ async function startServer() {
   if (!isProduction()) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'custom'
+      appType: 'spa'
     });
     app.use(vite.middlewares);
     console.log('[SERVER] Vite development middleware attached.');
@@ -50,7 +50,6 @@ async function startServer() {
     console.log('[SERVER] Static production assets attached from /dist.');
   }
 
-  app.use(notFoundHandler);
   app.use(errorHandler);
 
   app.listen(PORT, HOST, () => {
