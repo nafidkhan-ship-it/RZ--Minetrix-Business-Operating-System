@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   HRMS_SUITE_MODULES, 
   WORKFORCE_CATEGORIES_DATA, 
@@ -40,8 +40,10 @@ import {
   Briefcase,
   Building2,
   Truck,
-  Pickaxe
+  Pickaxe,
+  RefreshCw
 } from 'lucide-react';
+import { apiClient } from '../services/apiClient';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
@@ -65,7 +67,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export const HrmsSuiteSection: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'modules' | 'categories' | 'workflows' | 'integrations' | 'structure' | 'security' | 'review'>('modules');
+  const [activeTab, setActiveTab] = useState<'live-ops' | 'modules' | 'categories' | 'workflows' | 'integrations' | 'structure' | 'security' | 'review'>('live-ops');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeModule, setActiveModule] = useState<HrmsSuiteModule>(HRMS_SUITE_MODULES[0]);
@@ -79,6 +81,180 @@ export const HrmsSuiteSection: React.FC = () => {
                           mod.subModules.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
+  const [payroll, setPayroll] = useState<any[]>([]);
+  const [payStructures, setPayStructures] = useState<any[]>([]);
+  const [employeeForm, setEmployeeForm] = useState({
+    code: '',
+    fullName: '',
+    phone: '',
+    department: 'Mining',
+    designation: 'Plant Operator',
+    joiningDate: new Date().toISOString().slice(0, 10),
+    payStructureId: ''
+  });
+  const [attendanceForm, setAttendanceForm] = useState({
+    employeeId: '',
+    workDate: new Date().toISOString().slice(0, 10),
+    status: 'PRESENT'
+  });
+  const [leaveForm, setLeaveForm] = useState({
+    employeeId: '',
+    leaveType: 'CL',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    reason: ''
+  });
+  const [payrollForm, setPayrollForm] = useState({
+    employeeId: '',
+    periodYear: new Date().getUTCFullYear(),
+    periodMonth: new Date().getUTCMonth() + 1
+  });
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const loadHrms = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setEmployees([]);
+      setAttendance([]);
+      setLeaves([]);
+      setPayroll([]);
+      setPayStructures([]);
+      return;
+    }
+    const [emp, att, lv, pay, structures] = await Promise.all([
+      apiClient.listHrmsEmployees(),
+      apiClient.listHrmsAttendance(),
+      apiClient.listHrmsLeaveRequests(),
+      apiClient.listHrmsPayroll(),
+      apiClient.listHrmsPayStructures()
+    ]);
+    if (emp.success && Array.isArray(emp.data)) setEmployees(emp.data);
+    else if (emp.message) showToast(emp.message);
+    if (att.success && Array.isArray(att.data)) setAttendance(att.data);
+    if (lv.success && Array.isArray(lv.data)) setLeaves(lv.data);
+    if (pay.success && Array.isArray(pay.data)) setPayroll(pay.data);
+    if (structures.success && Array.isArray(structures.data)) setPayStructures(structures.data);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'live-ops') {
+      loadHrms();
+    }
+  }, [activeTab, loadHrms]);
+
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to manage employees');
+      return;
+    }
+    let payStructureId = employeeForm.payStructureId;
+    if (!payStructureId) {
+      const createdPay = await apiClient.createHrmsPayStructure({
+        code: `PAY-${Date.now().toString().slice(-6)}`,
+        name: 'Default Operator Grade',
+        basicSalary: 30000,
+        allowanceAmount: 2000,
+        pfPercent: 12,
+        otherDeductionAmount: 500,
+        overtimeRatePerHour: 100
+      });
+      if (!createdPay.success) {
+        showToast(createdPay.message || 'Unable to create pay structure');
+        return;
+      }
+      payStructureId = createdPay.data.id;
+    }
+    const res = await apiClient.createHrmsEmployee({
+      code: employeeForm.code.trim().toUpperCase(),
+      fullName: employeeForm.fullName.trim(),
+      phone: employeeForm.phone.trim() || undefined,
+      joiningDate: employeeForm.joiningDate,
+      department: employeeForm.department,
+      designation: employeeForm.designation,
+      payStructureId
+    });
+    if (res.success) {
+      showToast(`Employee ${res.data.code} created`);
+      setEmployeeForm({ ...employeeForm, code: '', fullName: '', phone: '', payStructureId });
+      await loadHrms();
+    } else {
+      showToast(res.message || 'Failed to create employee');
+    }
+  };
+
+  const handleCreateAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to record attendance');
+      return;
+    }
+    const res = await apiClient.createHrmsAttendance({
+      employeeId: attendanceForm.employeeId,
+      workDate: attendanceForm.workDate,
+      status: attendanceForm.status
+    });
+    if (res.success) {
+      showToast(`Attendance ${res.data.status} saved`);
+      await loadHrms();
+    } else {
+      showToast(res.message || 'Failed to record attendance');
+    }
+  };
+
+  const handleCreateLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to request leave');
+      return;
+    }
+    const res = await apiClient.createHrmsLeaveRequest({
+      employeeId: leaveForm.employeeId,
+      leaveType: leaveForm.leaveType,
+      startDate: leaveForm.startDate,
+      endDate: leaveForm.endDate,
+      reason: leaveForm.reason || undefined
+    });
+    if (res.success) {
+      showToast(`Leave ${res.data.id} requested`);
+      await loadHrms();
+    } else {
+      showToast(res.message || 'Failed to request leave');
+    }
+  };
+
+  const handleApproveLeave = async (leaveId: string) => {
+    const res = await apiClient.approveHrmsLeave(leaveId);
+    showToast(res.success ? `Leave approved` : res.message || 'Approve failed');
+    await loadHrms();
+  };
+
+  const handleCreatePayroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to run payroll');
+      return;
+    }
+    const res = await apiClient.createHrmsPayroll({
+      employeeId: payrollForm.employeeId,
+      periodYear: Number(payrollForm.periodYear),
+      periodMonth: Number(payrollForm.periodMonth)
+    });
+    if (res.success) {
+      showToast(`Payroll posted net ₹${res.data.netAmount}`);
+      await loadHrms();
+    } else {
+      showToast(res.message || 'Failed to run payroll');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -138,6 +314,18 @@ export const HrmsSuiteSection: React.FC = () => {
 
         {/* Section Navigation Tabs */}
         <div className="flex items-center gap-2 mt-8 pt-6 border-t border-slate-800/80 overflow-x-auto pb-1">
+          <button
+            onClick={() => setActiveTab('live-ops')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 cursor-pointer ${
+              activeTab === 'live-ops'
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20'
+                : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Live HRMS</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('modules')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 cursor-pointer ${
@@ -223,6 +411,146 @@ export const HrmsSuiteSection: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-slate-950 border border-emerald-500/40 text-sm text-emerald-200 shadow-xl">
+          {toastMsg}
+        </div>
+      )}
+
+      {activeTab === 'live-ops' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-400">PostgreSQL-backed employees, attendance, leave, and server-calculated payroll. Login on Shared Core first.</p>
+            <button
+              onClick={() => loadHrms()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 hover:bg-slate-800"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            <form onSubmit={handleCreateEmployee} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-white">Employee master</h3>
+              <input className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="EMP-CODE" value={employeeForm.code} onChange={(e) => setEmployeeForm({ ...employeeForm, code: e.target.value })} required />
+              <input className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Full name" value={employeeForm.fullName} onChange={(e) => setEmployeeForm({ ...employeeForm, fullName: e.target.value })} required />
+              <div className="grid grid-cols-2 gap-2">
+                <input className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Phone" value={employeeForm.phone} onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={employeeForm.joiningDate} onChange={(e) => setEmployeeForm({ ...employeeForm, joiningDate: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} />
+                <input className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Designation" value={employeeForm.designation} onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })} />
+              </div>
+              <button type="submit" className="w-full py-2 rounded-lg bg-emerald-500 text-slate-950 text-sm font-bold">Create employee</button>
+            </form>
+
+            <form onSubmit={handleCreateAttendance} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-white">Attendance</h3>
+              <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.employeeId} onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })} required>
+                <option value="">Select employee</option>
+                {employees.map((row) => (
+                  <option key={row.id} value={row.id}>{row.code} — {row.fullName}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.workDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, workDate: e.target.value })} />
+                <select className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={attendanceForm.status} onChange={(e) => setAttendanceForm({ ...attendanceForm, status: e.target.value })}>
+                  {['PRESENT', 'ABSENT', 'HALF_DAY', 'HOLIDAY', 'OFF'].map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="w-full py-2 rounded-lg bg-indigo-500 text-slate-950 text-sm font-bold">Record attendance</button>
+            </form>
+
+            <form onSubmit={handleCreateLeave} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-white">Leave request</h3>
+              <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.employeeId} onChange={(e) => setLeaveForm({ ...leaveForm, employeeId: e.target.value })} required>
+                <option value="">Select employee</option>
+                {employees.map((row) => (
+                  <option key={row.id} value={row.id}>{row.code} — {row.fullName}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-3 gap-2">
+                <select className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.leaveType} onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value })}>
+                  {['CL', 'SL', 'EL', 'LOP'].map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} />
+                <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={leaveForm.endDate} onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })} />
+              </div>
+              <input className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" placeholder="Reason" value={leaveForm.reason} onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })} />
+              <button type="submit" className="w-full py-2 rounded-lg bg-amber-500 text-slate-950 text-sm font-bold">Request leave</button>
+            </form>
+
+            <form onSubmit={handleCreatePayroll} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-white">Payroll (server calculated)</h3>
+              <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={payrollForm.employeeId} onChange={(e) => setPayrollForm({ ...payrollForm, employeeId: e.target.value })} required>
+                <option value="">Select employee</option>
+                {employees.map((row) => (
+                  <option key={row.id} value={row.id}>{row.code} — {row.fullName}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={payrollForm.periodYear} onChange={(e) => setPayrollForm({ ...payrollForm, periodYear: Number(e.target.value) })} />
+                <input type="number" min={1} max={12} className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white" value={payrollForm.periodMonth} onChange={(e) => setPayrollForm({ ...payrollForm, periodMonth: Number(e.target.value) })} />
+              </div>
+              <button type="submit" className="w-full py-2 rounded-lg bg-fuchsia-500 text-slate-950 text-sm font-bold">Run payroll</button>
+            </form>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <h3 className="text-sm font-bold text-white mb-3">Employees ({employees.length})</h3>
+              <div className="space-y-2 max-h-56 overflow-auto">
+                {employees.map((row) => (
+                  <div key={row.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                    <span className="font-mono text-emerald-300">{row.code}</span> {row.fullName} · {row.department} · {row.employmentStatus}
+                  </div>
+                ))}
+                {employees.length === 0 && <p className="text-xs text-slate-500">No employees loaded. Login via Shared Core, then create.</p>}
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <h3 className="text-sm font-bold text-white mb-3">Leave ({leaves.length})</h3>
+              <div className="space-y-2 max-h-56 overflow-auto">
+                {leaves.map((row) => (
+                  <div key={row.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-2">
+                    <span>{row.leaveType} {row.startDate}→{row.endDate} · {row.status}</span>
+                    {row.status === 'REQUESTED' && (
+                      <button onClick={() => handleApproveLeave(row.id)} className="px-2 py-1 rounded bg-emerald-500 text-slate-950 font-bold">Approve</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <h3 className="text-sm font-bold text-white mb-3">Attendance ({attendance.length})</h3>
+              <div className="space-y-2 max-h-56 overflow-auto">
+                {attendance.map((row) => (
+                  <div key={row.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                    {row.workDate} · {row.status} · {row.workingHours}h
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <h3 className="text-sm font-bold text-white mb-3">Payroll ({payroll.length}) · structures {payStructures.length}</h3>
+              <div className="space-y-2 max-h-56 overflow-auto">
+                {payroll.map((row) => (
+                  <div key={row.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                    {row.periodYear}-{String(row.periodMonth).padStart(2, '0')} gross ₹{row.grossAmount} net ₹{row.netAmount} · {row.status}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: 16 HRMS MODULES */}
       {activeTab === 'modules' && (

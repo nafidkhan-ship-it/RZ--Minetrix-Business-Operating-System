@@ -1,5 +1,5 @@
 import { AuthService, TenantService, UserService, AuditService, NotificationService, WorkflowService } from '../services/sharedCoreServices.js';
-import { db } from '../db/database.js';
+import { db, initializeDatabase } from '../db/database.js';
 import { jwtService } from '../security/jwtService.js';
 import { LocalStorageProvider } from '../providers/storageProvider.js';
 import { notificationDispatcher } from '../providers/notificationProviders.js';
@@ -20,6 +20,7 @@ export async function runSharedCoreTestSuite(): Promise<{
   failedCount: number;
   results: TestResult[];
 }> {
+  await initializeDatabase();
   const results: TestResult[] = [];
 
   const authService = new AuthService();

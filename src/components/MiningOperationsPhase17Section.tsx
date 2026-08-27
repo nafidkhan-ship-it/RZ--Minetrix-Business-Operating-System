@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Pickaxe, Factory, Building2, ShoppingBag, Truck, Cpu,
   Layers, ShieldCheck, Sparkles, CheckCircle2, Search, Filter,
@@ -25,6 +25,16 @@ import {
   BuildingMaterialItem,
   PublicCustomerOrder
 } from '../data/miningPlatformPhase17Data';
+import { apiClient } from '../services/apiClient';
+
+interface QuarrySiteRecord {
+  id: string;
+  code: string;
+  name: string;
+  mineralType: string;
+  operationalStatus: string;
+  capacityTons?: number;
+}
 
 export const MiningOperationsPhase17Section: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
@@ -73,9 +83,368 @@ export const MiningOperationsPhase17Section: React.FC = () => {
   // Crusher state
   const [crusherLog] = useState(MOCK_CRUSHER_SHIFT_LOGS);
 
+  const [quarries, setQuarries] = useState<QuarrySiteRecord[]>([]);
+  const [quarriesLoading, setQuarriesLoading] = useState(false);
+  const [quarryForm, setQuarryForm] = useState({
+    code: '',
+    name: '',
+    mineralType: 'HARD_ROCK',
+    capacityTons: 1000
+  });
+  const [erpProducts, setErpProducts] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [productionBatches, setProductionBatches] = useState<Array<{ id: string; batchNumber: string; status: string; totalQuantity: number }>>([]);
+  const [stockBalances, setStockBalances] = useState<Array<{ id: string; productId: string; quantity: number; quantityUom: string }>>([]);
+  const [landParcels, setLandParcels] = useState<Array<{ id: string; surveyNumber: string; ownerName: string; acreage?: number; villageTaluk?: string }>>([]);
+  const [gatePasses, setGatePasses] = useState<Array<{ id: string; gatePassNumber: string; status: string }>>([]);
+  const [settlements, setSettlements] = useState<Array<{ id: string; settlementNumber: string; grossAmount: number; netAmount: number; quantity: number }>>([]);
+  const [auditEntries, setAuditEntries] = useState<Array<{ action: string; module?: string; resource?: string; status?: string; createdAt: string }>>([]);
+  const [crmOrders, setCrmOrders] = useState<Array<{ id: string; orderNumber: string; status: string; totalAmount: number }>>([]);
+  const [crmForm, setCrmForm] = useState({
+    companyName: '',
+    contactName: '',
+    quarryId: '',
+    productId: '',
+    quantity: 4,
+    unitPrice: 640,
+    vehicleNumber: '',
+    driverName: ''
+  });
+  const [productForm, setProductForm] = useState({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
+  const [productionForm, setProductionForm] = useState({
+    quarryId: '',
+    productId: '',
+    quantity: 10,
+    shiftName: 'A'
+  });
+  const [dispatchForm, setDispatchForm] = useState({
+    quarryId: '',
+    productId: '',
+    customerCode: '',
+    customerName: '',
+    vehicleNumber: '',
+    driverName: '',
+    quantity: 5
+  });
+  const [parcelForm, setParcelForm] = useState({
+    surveyNumber: '',
+    ownerName: '',
+    villageTaluk: 'Bantwal',
+    acreage: 4.5
+  });
+  const [settlementForm, setSettlementForm] = useState({
+    quarryId: '',
+    landParcelId: '',
+    productionBatchId: '',
+    ratePerUom: 80,
+    deductions: 25
+  });
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const loadQuarries = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setQuarries([]);
+      return;
+    }
+    setQuarriesLoading(true);
+    const res = await apiClient.listQuarries();
+    if (res.success && Array.isArray(res.data)) {
+      setQuarries(res.data);
+    } else if (res.error === 'NETWORK_ERROR' || res.message) {
+      showToast(res.message || 'Unable to load quarry sites');
+    }
+    setQuarriesLoading(false);
+  }, []);
+
+  const loadErpOperations = useCallback(async () => {
+    if (!apiClient.getAuthToken()) return;
+    const [products, batches, stock, parcels, passes, stmts, audit, orders] = await Promise.all([
+      apiClient.listProducts(),
+      apiClient.listProductionBatches(),
+      apiClient.listStockBalances(),
+      apiClient.listLandParcels(),
+      apiClient.listGatePasses(),
+      apiClient.listSettlements(),
+      apiClient.getAuditLogs(),
+      apiClient.listOrders()
+    ]);
+    if (products.success && Array.isArray(products.data)) setErpProducts(products.data);
+    if (batches.success && Array.isArray(batches.data)) setProductionBatches(batches.data);
+    if (stock.success && Array.isArray(stock.data)) setStockBalances(stock.data);
+    if (parcels.success && Array.isArray(parcels.data)) setLandParcels(parcels.data);
+    if (passes.success && Array.isArray(passes.data)) setGatePasses(passes.data);
+    if (stmts.success && Array.isArray(stmts.data)) setSettlements(stmts.data);
+    if (audit.success && Array.isArray(audit.data)) setAuditEntries(audit.data);
+    if (orders.success && Array.isArray(orders.data)) setCrmOrders(orders.data);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'land-management' || activeTab === 'production-stock' || activeTab === 'pricing-dispatch' || activeTab === 'building-materials') {
+      loadQuarries();
+      loadErpOperations();
+    }
+  }, [activeTab, loadQuarries, loadErpOperations]);
+
+  const handleCreateQuarry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to register quarry sites');
+      return;
+    }
+    if (!quarryForm.code.trim() || !quarryForm.name.trim()) {
+      showToast('Quarry code and name are required');
+      return;
+    }
+    const res = await apiClient.createQuarry({
+      code: quarryForm.code.trim().toUpperCase(),
+      name: quarryForm.name.trim(),
+      mineralType: quarryForm.mineralType,
+      operationalStatus: 'ACTIVE',
+      capacityTons: Number(quarryForm.capacityTons)
+    });
+    if (res.success) {
+      showToast(`Quarry [${quarryForm.code.toUpperCase()}] registered`);
+      setQuarryForm({ code: '', name: '', mineralType: 'HARD_ROCK', capacityTons: 1000 });
+      await loadQuarries();
+    } else {
+      showToast(res.message || 'Failed to create quarry');
+    }
+  };
+
+  const handleCreateProductionBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to post production');
+      return;
+    }
+    if (!productionForm.quarryId || !productionForm.productId) {
+      showToast('Select quarry and product');
+      return;
+    }
+    const res = await apiClient.createProductionBatch({
+      quarryId: productionForm.quarryId,
+      batchNumber: `BAT-${Date.now().toString().slice(-8)}`,
+      productionDate: new Date().toISOString().slice(0, 10),
+      shiftName: productionForm.shiftName,
+      postImmediately: true,
+      lines: [{ productId: productionForm.productId, quantity: Number(productionForm.quantity), quantityUom: 'TON' }]
+    });
+    if (res.success) {
+      showToast(`Production posted [${res.data.batchNumber}] — stock increased`);
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to post production');
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create products');
+      return;
+    }
+    if (!productForm.code.trim() || !productForm.name.trim()) {
+      showToast('Product code and name are required');
+      return;
+    }
+    const res = await apiClient.createProduct({
+      code: productForm.code.trim().toUpperCase(),
+      name: productForm.name.trim(),
+      category: productForm.category,
+      defaultUom: 'TON',
+      gstPercent: 5
+    });
+    if (res.success) {
+      showToast(`Product [${productForm.code.toUpperCase()}] created`);
+      setProductForm({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to create product');
+    }
+  };
+
+  const handleCreateLiveDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create a gate pass');
+      return;
+    }
+    if (!dispatchForm.quarryId || !dispatchForm.productId || !dispatchForm.customerName || !dispatchForm.vehicleNumber || !dispatchForm.driverName) {
+      showToast('Complete quarry, product, customer, vehicle and driver');
+      return;
+    }
+    const customer = await apiClient.createCustomer({
+      code: dispatchForm.customerCode.trim().toUpperCase() || `CUST-${Date.now().toString().slice(-6)}`,
+      name: dispatchForm.customerName.trim(),
+      destination: 'Site delivery'
+    });
+    if (!customer.success) {
+      showToast(customer.message || 'Failed to create customer');
+      return;
+    }
+    const gatePass = await apiClient.createGatePass({
+      gatePassNumber: `GP-${Date.now().toString().slice(-8)}`,
+      quarryId: dispatchForm.quarryId,
+      customerId: customer.data.id,
+      vehicleNumber: dispatchForm.vehicleNumber,
+      driverName: dispatchForm.driverName,
+      destination: 'Site delivery',
+      lines: [{ productId: dispatchForm.productId, quantity: Number(dispatchForm.quantity), quantityUom: 'TON' }]
+    });
+    if (gatePass.success) {
+      showToast(`Gate pass ${gatePass.data.gatePassNumber} created as DRAFT`);
+      await loadErpOperations();
+    } else {
+      showToast(gatePass.message || 'Failed to create gate pass');
+    }
+  };
+
+  const handleGatePassAction = async (gatePassId: string, action: 'approve' | 'issue' | 'cancel') => {
+    const res = await apiClient.transitionGatePass(gatePassId, action);
+    if (res.success) {
+      showToast(`Gate pass ${action}d → ${res.data.status}`);
+      await loadErpOperations();
+    } else {
+      showToast(res.message || `Failed to ${action} gate pass`);
+    }
+  };
+
+  const handleDispatchGatePass = async (gatePassId: string) => {
+    const res = await apiClient.createDispatch({
+      dispatchNumber: `DSP-${Date.now().toString().slice(-8)}`,
+      gatePassId
+    });
+    if (res.success) {
+      showToast(`Dispatch ${res.data.dispatchNumber} posted — stock decreased`);
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to create dispatch');
+    }
+  };
+
+  const handleCreateParcel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to register land parcels');
+      return;
+    }
+    if (!parcelForm.surveyNumber.trim() || !parcelForm.ownerName.trim()) {
+      showToast('Survey number and owner name are required');
+      return;
+    }
+    const res = await apiClient.createLandParcel({
+      surveyNumber: parcelForm.surveyNumber.trim(),
+      villageTaluk: parcelForm.villageTaluk,
+      acreage: Number(parcelForm.acreage),
+      ownerName: parcelForm.ownerName.trim()
+    });
+    if (res.success) {
+      showToast(`Land parcel ${parcelForm.surveyNumber} registered`);
+      setParcelForm({ surveyNumber: '', ownerName: '', villageTaluk: 'Bantwal', acreage: 4.5 });
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to create land parcel');
+    }
+  };
+
+  const handleCreateSettlement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create settlement');
+      return;
+    }
+    if (!settlementForm.quarryId || !settlementForm.landParcelId || !settlementForm.productionBatchId) {
+      showToast('Select quarry, land parcel, and posted production batch');
+      return;
+    }
+    const rate = await apiClient.createSettlementRate({
+      landParcelId: settlementForm.landParcelId,
+      quarryId: settlementForm.quarryId,
+      ratePerUom: Number(settlementForm.ratePerUom),
+      quantityUom: 'TON',
+      effectiveFrom: '2026-01-01'
+    });
+    if (!rate.success) {
+      showToast(rate.message || 'Failed to configure settlement rate');
+      return;
+    }
+    const settlement = await apiClient.createSettlement({
+      settlementNumber: `STL-${Date.now().toString().slice(-8)}`,
+      landParcelId: settlementForm.landParcelId,
+      quarryId: settlementForm.quarryId,
+      basis: 'PRODUCTION',
+      productionBatchId: settlementForm.productionBatchId,
+      deductions: Number(settlementForm.deductions),
+      statementRef: 'UAT-STMT'
+    });
+    if (settlement.success) {
+      showToast(`Settlement net ₹${settlement.data.netAmount} (gross ₹${settlement.data.grossAmount})`);
+      await loadErpOperations();
+    } else {
+      showToast(settlement.message || 'Failed to create settlement');
+    }
+  };
+
+  const handleLiveCrmOrderFlow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core for CRM orders');
+      return;
+    }
+    if (!crmForm.companyName.trim() || !crmForm.quarryId || !crmForm.productId || !crmForm.vehicleNumber.trim() || !crmForm.driverName.trim()) {
+      showToast('Complete company, quarry, product, vehicle and driver');
+      return;
+    }
+    const lead = await apiClient.createLead({
+      code: `LD-${Date.now().toString().slice(-6)}`,
+      companyName: crmForm.companyName.trim(),
+      contactName: crmForm.contactName.trim() || crmForm.companyName.trim(),
+      source: 'UI'
+    });
+    if (!lead.success) {
+      showToast(lead.message || 'Failed to create lead');
+      return;
+    }
+    const converted = await apiClient.convertLead(lead.data.id);
+    if (!converted.success || !converted.data?.convertedCustomerId) {
+      showToast(converted.message || 'Failed to convert lead');
+      return;
+    }
+    await apiClient.createContact({
+      customerId: converted.data.convertedCustomerId,
+      fullName: crmForm.contactName.trim() || crmForm.companyName.trim(),
+      roleTitle: 'Primary'
+    });
+    const order = await apiClient.createOrder({
+      orderNumber: `SO-${Date.now().toString().slice(-8)}`,
+      customerId: converted.data.convertedCustomerId,
+      quarryId: crmForm.quarryId,
+      lines: [{ productId: crmForm.productId, quantity: Number(crmForm.quantity), unitPrice: Number(crmForm.unitPrice), quantityUom: 'TON' }]
+    });
+    if (!order.success) {
+      showToast(order.message || 'Failed to create order');
+      return;
+    }
+    const confirmed = await apiClient.confirmOrder(order.data.id);
+    if (!confirmed.success) {
+      showToast(confirmed.message || 'Failed to confirm order (need stock)');
+      return;
+    }
+    const gp = await apiClient.createOrderGatePass(order.data.id, {
+      gatePassNumber: `GP-SO-${Date.now().toString().slice(-6)}`,
+      vehicleNumber: crmForm.vehicleNumber,
+      driverName: crmForm.driverName,
+      destination: 'Order delivery'
+    });
+    if (gp.success) {
+      showToast(`Order ${order.data.orderNumber} confirmed → gate pass ${gp.data.gatePassNumber} DRAFT`);
+      await loadErpOperations();
+    } else {
+      showToast(gp.message || 'Failed to create order gate pass');
+    }
   };
 
   const handleCreateOrder = (e: React.FormEvent) => {
@@ -374,7 +743,80 @@ export const MiningOperationsPhase17Section: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Pickaxe className="w-4 h-4 text-amber-400" /> Quarry Site Registry (Live API)
+              </h3>
+              {!apiClient.getAuthToken() && (
+                <p className="text-xs text-slate-400">
+                  Login via Phase 16 Shared Core to load and register quarry sites from PostgreSQL.
+                </p>
+              )}
+              <form onSubmit={handleCreateQuarry} className="space-y-3 text-xs">
+                <input
+                  type="text"
+                  placeholder="Quarry code (e.g. QRY-NORTH)"
+                  value={quarryForm.code}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, code: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+                <input
+                  type="text"
+                  placeholder="Quarry name"
+                  value={quarryForm.name}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+                <select
+                  value={quarryForm.mineralType}
+                  onChange={(e) => setQuarryForm({ ...quarryForm, mineralType: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                >
+                  <option value="HARD_ROCK">Hard Rock</option>
+                  <option value="LATERITE">Laterite</option>
+                  <option value="GRANITE">Granite</option>
+                  <option value="BLUE_METAL">Blue Metal</option>
+                </select>
+                <button type="submit" className="w-full py-2 bg-amber-500 text-slate-950 font-bold rounded-lg">
+                  Register Quarry Site
+                </button>
+              </form>
+              <form onSubmit={handleCreateParcel} className="space-y-3 text-xs border-t border-slate-800 pt-3">
+                <h4 className="text-amber-300 font-bold">Land Parcel (Live API)</h4>
+                <input placeholder="Survey number" value={parcelForm.surveyNumber} onChange={(e) => setParcelForm({ ...parcelForm, surveyNumber: e.target.value })} className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+                <input placeholder="Owner name" value={parcelForm.ownerName} onChange={(e) => setParcelForm({ ...parcelForm, ownerName: e.target.value })} className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+                <button type="submit" className="w-full py-2 bg-slate-800 text-amber-300 font-bold rounded-lg">Register Land Parcel</button>
+              </form>
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {quarriesLoading && <p className="text-slate-400 text-xs">Loading quarry sites...</p>}
+                {!quarriesLoading && quarries.length === 0 && (
+                  <p className="text-slate-500 text-xs">No quarry sites registered yet.</p>
+                )}
+                {quarries.map((quarry) => (
+                  <div key={quarry.id} className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-xs">
+                    <div className="font-bold text-amber-300">{quarry.code}</div>
+                    <div className="text-white">{quarry.name}</div>
+                    <div className="text-slate-400">{quarry.mineralType} · {quarry.operationalStatus}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {landParcels.length > 0 && landParcels.map((parcel) => (
+              <div key={parcel.id} className="p-5 bg-slate-950 border border-amber-500/30 rounded-xl space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <span className="text-amber-400 font-bold">{parcel.surveyNumber}</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">LIVE API</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">{parcel.ownerName}</h4>
+                <div className="space-y-1 text-slate-300">
+                  <div className="flex justify-between"><span className="text-slate-400">Village / Taluk:</span><span>{parcel.villageTaluk || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Lease Area:</span><span className="text-amber-300 font-bold">{parcel.acreage ?? '—'} Acres</span></div>
+                </div>
+              </div>
+            ))}
             {MOCK_LAND_OWNERS.map((lo) => (
               <div key={lo.id} className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
@@ -419,6 +861,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       )}
@@ -460,6 +903,13 @@ export const MiningOperationsPhase17Section: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {erpProducts.map((product) => (
+              <div key={product.id} className="p-4 bg-slate-950 border border-amber-500/40 rounded-xl space-y-3">
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">LIVE API</span>
+                <div className="text-amber-300 font-mono text-[10px]">{product.code}</div>
+                <h4 className="text-sm font-bold text-white">{product.name}</h4>
+              </div>
+            ))}
             {filteredMaterials.map((mat) => (
               <div key={mat.id} className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl space-y-3 transition-all">
                 <div className="flex items-center justify-between">
@@ -503,6 +953,145 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       {/* TAB 4: PRODUCTION & STOCK YARD */}
       {activeTab === 'production-stock' && (
         <div className="space-y-6">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-2xl p-6 space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3">Live Production Posting (PostgreSQL + Stock Ledger)</h3>
+            {!apiClient.getAuthToken() && (
+              <p className="text-xs text-slate-400">Login via Phase 16 Shared Core to post production and update stock.</p>
+            )}
+            <form onSubmit={handleCreateProduct} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <input placeholder="Product code" value={productForm.code} onChange={(e) => setProductForm({ ...productForm, code: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Product name" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <button type="submit" className="py-2 bg-slate-800 text-amber-300 font-bold rounded-xl">Create Product Master</button>
+            </form>
+            <form onSubmit={handleCreateProductionBatch} className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+              <select
+                value={productionForm.quarryId}
+                onChange={(e) => setProductionForm({ ...productionForm, quarryId: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              >
+                <option value="">Select quarry</option>
+                {quarries.map((quarry) => (
+                  <option key={quarry.id} value={quarry.id}>{quarry.code} · {quarry.name}</option>
+                ))}
+              </select>
+              <select
+                value={productionForm.productId}
+                onChange={(e) => setProductionForm({ ...productionForm, productId: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              >
+                <option value="">Select product</option>
+                {erpProducts.map((product) => (
+                  <option key={product.id} value={product.id}>{product.code} · {product.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={0.001}
+                step="0.001"
+                value={productionForm.quantity}
+                onChange={(e) => setProductionForm({ ...productionForm, quantity: Number(e.target.value) })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono"
+              />
+              <input
+                type="text"
+                value={productionForm.shiftName}
+                onChange={(e) => setProductionForm({ ...productionForm, shiftName: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              />
+              <button type="submit" className="py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Post Production</button>
+            </form>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+              <div>
+                <h4 className="text-amber-300 font-bold mb-2">Posted batches</h4>
+                {productionBatches.length === 0 && <p className="text-slate-500">No live batches yet.</p>}
+                {productionBatches.slice(0, 6).map((batch) => (
+                  <div key={batch.id} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-white">{batch.batchNumber}</span>
+                    <span className="text-emerald-400">{batch.status} · {batch.totalQuantity}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="text-emerald-300 font-bold mb-2">Stock balances</h4>
+                {stockBalances.length === 0 && <p className="text-slate-500">No live stock yet.</p>}
+                {stockBalances.slice(0, 6).map((row) => (
+                  <div key={row.id} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-slate-300">{row.productId.slice(0, 8)}…</span>
+                    <span className="text-white font-bold">{row.quantity} {row.quantityUom}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <form onSubmit={handleCreateSettlement} className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs border-t border-slate-800 pt-4">
+              <select value={settlementForm.quarryId} onChange={(e) => setSettlementForm({ ...settlementForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Quarry</option>
+                {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
+              </select>
+              <select value={settlementForm.landParcelId} onChange={(e) => setSettlementForm({ ...settlementForm, landParcelId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Land parcel</option>
+                {landParcels.map((parcel) => <option key={parcel.id} value={parcel.id}>{parcel.surveyNumber}</option>)}
+              </select>
+              <select value={settlementForm.productionBatchId} onChange={(e) => setSettlementForm({ ...settlementForm, productionBatchId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Posted batch</option>
+                {productionBatches.filter((batch) => batch.status === 'POSTED').map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.batchNumber}</option>
+                ))}
+              </select>
+              <input type="number" value={settlementForm.ratePerUom} onChange={(e) => setSettlementForm({ ...settlementForm, ratePerUom: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <button type="submit" className="py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl">Create Settlement</button>
+            </form>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+              <div>
+                <h4 className="text-emerald-300 font-bold mb-2">Settlements</h4>
+                {settlements.length === 0 && <p className="text-slate-500">No live settlements yet.</p>}
+                {settlements.slice(0, 6).map((row) => (
+                  <div key={row.id} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-white">{row.settlementNumber}</span>
+                    <span className="text-amber-300">gross ₹{row.grossAmount} / net ₹{row.netAmount}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="text-slate-300 font-bold mb-2">Audit trail</h4>
+                {auditEntries.length === 0 && <p className="text-slate-500">No audit rows yet.</p>}
+                {auditEntries.slice(0, 6).map((row, idx) => (
+                  <div key={`${row.createdAt}-${idx}`} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-white">{row.action}</span>
+                    <span className="text-slate-400">{row.status} · {row.resource}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <form onSubmit={handleLiveCrmOrderFlow} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs border-t border-slate-800 pt-4">
+              <h4 className="md:col-span-4 text-amber-300 font-bold">Live CRM → Order → Gate Pass</h4>
+              <input placeholder="Company / lead" value={crmForm.companyName} onChange={(e) => setCrmForm({ ...crmForm, companyName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Contact name" value={crmForm.contactName} onChange={(e) => setCrmForm({ ...crmForm, contactName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <select value={crmForm.quarryId} onChange={(e) => setCrmForm({ ...crmForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Quarry</option>
+                {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
+              </select>
+              <select value={crmForm.productId} onChange={(e) => setCrmForm({ ...crmForm, productId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Product</option>
+                {erpProducts.map((product) => <option key={product.id} value={product.id}>{product.code}</option>)}
+              </select>
+              <input type="number" min={0.001} step="0.001" value={crmForm.quantity} onChange={(e) => setCrmForm({ ...crmForm, quantity: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <input type="number" min={0} step="0.01" value={crmForm.unitPrice} onChange={(e) => setCrmForm({ ...crmForm, unitPrice: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <input placeholder="Vehicle" value={crmForm.vehicleNumber} onChange={(e) => setCrmForm({ ...crmForm, vehicleNumber: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Driver" value={crmForm.driverName} onChange={(e) => setCrmForm({ ...crmForm, driverName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <button type="submit" className="md:col-span-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">Create Lead, Order, Confirm, Gate Pass</button>
+            </form>
+            <div className="text-xs font-mono">
+              <h4 className="text-blue-300 font-bold mb-2">Live orders</h4>
+              {crmOrders.length === 0 && <p className="text-slate-500">No live orders yet.</p>}
+              {crmOrders.slice(0, 6).map((row) => (
+                <div key={row.id} className="flex justify-between border-b border-slate-800 py-1">
+                  <span className="text-white">{row.orderNumber}</span>
+                  <span className="text-amber-300">{row.status} · ₹{row.totalAmount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Cutting Register Entry Form */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
@@ -765,6 +1354,36 @@ export const MiningOperationsPhase17Section: React.FC = () => {
           <div className="border-b border-slate-800 pb-4">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Modules 6, 7 &amp; 8</span>
             <h2 className="text-xl font-bold text-white mt-1">Smart Dynamic Pricing, Automated Gate Pass &amp; Weighbridge Telemetry</h2>
+          </div>
+
+          <div className="p-5 bg-slate-950 border border-amber-500/40 rounded-xl space-y-3">
+            <h4 className="text-sm font-bold text-amber-400">Live Gate Pass → Dispatch (stock-checked)</h4>
+            <form onSubmit={handleCreateLiveDispatch} className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <select value={dispatchForm.quarryId} onChange={(e) => setDispatchForm({ ...dispatchForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white">
+                <option value="">Select quarry</option>
+                {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
+              </select>
+              <select value={dispatchForm.productId} onChange={(e) => setDispatchForm({ ...dispatchForm, productId: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white">
+                <option value="">Select product</option>
+                {erpProducts.map((product) => <option key={product.id} value={product.id}>{product.code}</option>)}
+              </select>
+              <input placeholder="Customer name" value={dispatchForm.customerName} onChange={(e) => setDispatchForm({ ...dispatchForm, customerName: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input placeholder="Vehicle number" value={dispatchForm.vehicleNumber} onChange={(e) => setDispatchForm({ ...dispatchForm, vehicleNumber: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input placeholder="Driver name" value={dispatchForm.driverName} onChange={(e) => setDispatchForm({ ...dispatchForm, driverName: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input type="number" min={0.001} step="0.001" value={dispatchForm.quantity} onChange={(e) => setDispatchForm({ ...dispatchForm, quantity: Number(e.target.value) })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono" />
+              <button type="submit" className="md:col-span-3 py-2 bg-amber-500 text-slate-950 font-bold rounded-lg">Create Gate Pass (DRAFT)</button>
+            </form>
+            <div className="space-y-2 text-[11px] font-mono text-slate-300">
+              {gatePasses.slice(0, 6).map((gp) => (
+                <div key={gp.id} className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-2">
+                  <span className="text-amber-300 font-bold">{gp.gatePassNumber}</span>
+                  <span>{gp.status}</span>
+                  {gp.status === 'DRAFT' && <button type="button" onClick={() => handleGatePassAction(gp.id, 'approve')} className="px-2 py-1 bg-slate-800 rounded text-emerald-300">Approve</button>}
+                  {gp.status === 'APPROVED' && <button type="button" onClick={() => handleGatePassAction(gp.id, 'issue')} className="px-2 py-1 bg-slate-800 rounded text-blue-300">Issue</button>}
+                  {gp.status === 'ISSUED' && <button type="button" onClick={() => handleDispatchGatePass(gp.id)} className="px-2 py-1 bg-amber-500 text-slate-950 rounded font-bold">Dispatch</button>}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">

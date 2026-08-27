@@ -1,60 +1,74 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { apiRouter } from './src/server/routes/apiRouter.js';
-import { correlationIdMiddleware } from './src/server/middleware/authMiddleware.js';
+import { createCoreApp } from './src/server/app.js';
+import { notFoundHandler, errorHandler } from './src/server/middleware/errorHandler.js';
+import { initializeDatabase } from './src/server/db/database.js';
+import { isProduction, validateJwtSecurityConfig, validateSignedUrlSecurityConfig, validateDatabaseConfig } from './src/server/config/securityConfig.js';
+import { getCorsConfigSummary } from './src/server/middleware/corsMiddleware.js';
+import { jwtService } from './src/server/security/jwtService.js';
 
 async function startServer() {
-  const app = express();
+  const jwtCheck = validateJwtSecurityConfig();
+  const signedUrlCheck = validateSignedUrlSecurityConfig();
+  const databaseCheck = validateDatabaseConfig();
+  if (isProduction() && !jwtCheck.ok) {
+    console.error(`[Security] ${jwtCheck.message}`);
+    process.exit(1);
+  }
+  if (isProduction() && !signedUrlCheck.ok) {
+    console.error(`[Security] ${signedUrlCheck.message}`);
+    process.exit(1);
+  }
+  if (isProduction() && !databaseCheck.ok) {
+    console.error(`[Security] ${databaseCheck.message}`);
+    process.exit(1);
+  }
+
+  await initializeDatabase();
+
+  const app = createCoreApp();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const HOST = '0.0.0.0';
 
-  // Body Parsing & Correlation ID
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-  app.use(correlationIdMiddleware as any);
-
-  // Health Endpoints at root level
-  app.get('/health/liveness', (req, res) => {
-    res.json({ status: 'UP', timestamp: new Date().toISOString() });
-  });
-
-  app.get('/health/readiness', (req, res) => {
-    res.json({ status: 'READY', db: 'CONNECTED', timestamp: new Date().toISOString() });
-  });
-
-  // Shared Core API v1 Gateway Router
-  app.use('/api/v1', apiRouter);
-
-  // Development vs Production Frontend Delivery
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProduction()) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa'
+      appType: 'custom'
     });
     app.use(vite.middlewares);
     console.log('[SERVER] Vite development middleware attached.');
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+        return next();
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
     console.log('[SERVER] Static production assets attached from /dist.');
   }
 
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
   app.listen(PORT, HOST, () => {
-    console.log(`=======================================================`);
-    console.log(` RZ® Minetrix BOS Shared Core Backend Running`);
+    const cors = getCorsConfigSummary();
+    console.log('=======================================================');
+    console.log(' RZ® Minetrix BOS Shared Core Backend Running');
     console.log(` Server URL: http://${HOST}:${PORT}`);
     console.log(` Health Liveness: http://${HOST}:${PORT}/health/liveness`);
     console.log(` Health Readiness: http://${HOST}:${PORT}/health/readiness`);
     console.log(` API Base Route: http://${HOST}:${PORT}/api/v1`);
-    console.log(`=======================================================`);
+    console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(` CORS origins: ${cors.allowedOrigins.join(', ') || '(none configured)'}`);
+    console.log(` JWT key source: ${jwtService.getKeySource()}`);
+    console.log('=======================================================');
   });
 }
 
 startServer().catch((err) => {
-  console.error('[FATAL] Failed to start RZ Minetrix Server:', err);
+  console.error('[FATAL] Failed to start RZ Minetrix Server:', err instanceof Error ? err.message : err);
   process.exit(1);
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Fuel, MapPin, Wrench, ShieldCheck, DollarSign,
   UserCheck, Activity, Award, BarChart3, Clock, AlertTriangle,
@@ -10,17 +10,13 @@ import {
 
 import {
   FLEET_GROUPS,
-  VEHICLE_MASTER_LIST,
-  DRIVER_DIRECTORY,
   MOCK_TRIP_LOGS,
   RENTAL_CONTRACTS,
-  MAINTENANCE_LOGS,
   USED_VEHICLE_MARKETPLACE,
   FREIGHT_MARKETPLACE_LOADS,
-  VehicleMasterRecord,
-  TripLogRecord,
-  DriverRecord
+  TripLogRecord
 } from '../data/fleetOperationsPhase18Data';
+import { apiClient } from '../services/apiClient';
 
 export const FleetOperationsPhase18Section: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
@@ -42,12 +38,98 @@ export const FleetOperationsPhase18Section: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // States
-  const [vehicles, setVehicles] = useState<VehicleMasterRecord[]>(VEHICLE_MASTER_LIST);
-  const [drivers] = useState<DriverRecord[]>(DRIVER_DIRECTORY);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [assignableVehicles, setAssignableVehicles] = useState<any[]>([]);
   const [trips, setTrips] = useState<TripLogRecord[]>(MOCK_TRIP_LOGS);
   const [searchVehicle, setSearchVehicle] = useState('');
-
-  // New Trip Creation Form State
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [searchDriver, setSearchDriver] = useState('');
+  const [driverStatusFilter, setDriverStatusFilter] = useState('');
+  const [driverLicenseFilter, setDriverLicenseFilter] = useState('');
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [vehiclesError, setVehiclesError] = useState<string | null>(null);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [driversError, setDriversError] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [driverForm, setDriverForm] = useState({
+    fullName: '',
+    phone: '',
+    licenseNumber: '',
+    licenseClass: 'HMV',
+    licenseIssueDate: '',
+    licenseExpiryDate: '',
+    badgeCode: '',
+    status: 'ACTIVE',
+    assignedVehicleId: '',
+    notes: ''
+  });
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [vehicleForm, setVehicleForm] = useState({
+    registrationNumber: '',
+    vehicleType: 'TIPPER',
+    make: 'Tata',
+    model: 'Signa',
+    variant: '',
+    manufacturingYear: 2022,
+    fuelType: 'DIESEL',
+    ownershipType: 'COMPANY',
+    ownerReference: '',
+    capacity: 28,
+    capacityUnit: 'TON',
+    status: 'ACTIVE',
+    insuranceReference: '',
+    fitnessReference: '',
+    permitReference: ''
+  });
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState('');
+  const [documentForm, setDocumentForm] = useState({
+    documentType: 'INSURANCE',
+    documentNumber: '',
+    issueDate: '',
+    expiryDate: '',
+    issuingAuthority: '',
+    fileName: '',
+    notes: ''
+  });
+  const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([]);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    vehicleId: '',
+    maintenanceType: 'Engine Service',
+    serviceDate: new Date().toISOString().slice(0, 10),
+    odometerReading: 0,
+    workshopName: '',
+    cost: 0,
+    status: 'OPEN',
+    description: ''
+  });
+  const [fuelRecords, setFuelRecords] = useState<any[]>([]);
+  const [fuelLoading, setFuelLoading] = useState(false);
+  const [fuelError, setFuelError] = useState<string | null>(null);
+  const [fuelForm, setFuelForm] = useState({
+    vehicleId: '',
+    fuelType: 'DIESEL',
+    quantity: 100,
+    rate: 94.5,
+    stationName: '',
+    referenceNumber: ''
+  });
+  const [operations, setOperations] = useState<any[]>([]);
+  const [operationsLoading, setOperationsLoading] = useState(false);
+  const [operationsError, setOperationsError] = useState<string | null>(null);
+  const [operationForm, setOperationForm] = useState({
+    operationNumber: '',
+    vehicleId: '',
+    driverId: '',
+    destination: '',
+    status: 'ASSIGNED'
+  });
   const [newTripForm, setNewTripForm] = useState({
     origin: 'Crusher Yard #1, Bantwal',
     destination: 'Smart Highway Project Site #4',
@@ -61,6 +143,423 @@ export const FleetOperationsPhase18Section: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const loadLiveVehicles = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setVehicles([]);
+      setVehiclesError('Login via Shared Core to load live vehicles.');
+      return;
+    }
+    setVehiclesLoading(true);
+    setVehiclesError(null);
+    const res = await apiClient.listFleetVehicles({
+      search: searchVehicle || undefined,
+      status: statusFilter || undefined,
+      vehicleType: typeFilter || undefined
+    });
+    if (res.success && Array.isArray(res.data)) {
+      setVehicles(res.data);
+    } else {
+      setVehicles([]);
+      setVehiclesError(res.message || 'Unable to load vehicles');
+    }
+    setVehiclesLoading(false);
+  }, [searchVehicle, statusFilter, typeFilter]);
+
+  const loadLiveDrivers = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setDrivers([]);
+      setAssignableVehicles([]);
+      setDriversError('Login via Shared Core to load live drivers.');
+      return;
+    }
+    setDriversLoading(true);
+    setDriversError(null);
+    const [driverRes, vehicleRes] = await Promise.all([
+      apiClient.listFleetDrivers({
+        search: searchDriver || undefined,
+        status: driverStatusFilter || undefined,
+        licenseClass: driverLicenseFilter || undefined
+      }),
+      apiClient.listFleetVehicles()
+    ]);
+    if (driverRes.success && Array.isArray(driverRes.data)) {
+      setDrivers(driverRes.data);
+    } else {
+      setDrivers([]);
+      setDriversError(driverRes.message || 'Unable to load drivers');
+    }
+    if (vehicleRes.success && Array.isArray(vehicleRes.data)) {
+      setAssignableVehicles(vehicleRes.data.filter((row: { status?: string }) => row.status !== 'RETIRED'));
+    } else {
+      setAssignableVehicles([]);
+    }
+    setDriversLoading(false);
+  }, [searchDriver, driverStatusFilter, driverLicenseFilter]);
+
+  const loadVehicleDocuments = useCallback(async (vehicleId: string) => {
+    if (!vehicleId || !apiClient.getAuthToken()) {
+      setDocuments([]);
+      return;
+    }
+    setDocumentsLoading(true);
+    setDocumentsError(null);
+    const res = await apiClient.listFleetVehicleDocuments({ vehicleId });
+    if (res.success && Array.isArray(res.data)) {
+      setDocuments(res.data);
+    } else {
+      setDocuments([]);
+      setDocumentsError(res.message || 'Unable to load vehicle documents');
+    }
+    setDocumentsLoading(false);
+  }, []);
+
+  const loadMaintenanceRecords = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setMaintenanceRecords([]);
+      setMaintenanceError('Login via Shared Core to load maintenance records.');
+      return;
+    }
+    setMaintenanceLoading(true);
+    setMaintenanceError(null);
+    const res = await apiClient.listFleetMaintenance();
+    if (res.success && Array.isArray(res.data)) {
+      setMaintenanceRecords(res.data);
+    } else {
+      setMaintenanceRecords([]);
+      setMaintenanceError(res.message || 'Unable to load maintenance records');
+    }
+    setMaintenanceLoading(false);
+  }, []);
+
+  const loadFuelRecords = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setFuelRecords([]);
+      setFuelError('Login via Shared Core to load fuel records.');
+      return;
+    }
+    setFuelLoading(true);
+    setFuelError(null);
+    const res = await apiClient.listFleetFuel();
+    if (res.success && Array.isArray(res.data)) {
+      setFuelRecords(res.data);
+    } else {
+      setFuelRecords([]);
+      setFuelError(res.message || 'Unable to load fuel records');
+    }
+    setFuelLoading(false);
+  }, []);
+
+  const loadFleetOperations = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setOperations([]);
+      setOperationsError('Login via Shared Core to load fleet operations.');
+      return;
+    }
+    setOperationsLoading(true);
+    setOperationsError(null);
+    const res = await apiClient.listFleetOperations();
+    if (res.success && Array.isArray(res.data)) {
+      setOperations(res.data);
+    } else {
+      setOperations([]);
+      setOperationsError(res.message || 'Unable to load fleet operations');
+    }
+    setOperationsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'vehicle-master') {
+      loadLiveVehicles();
+    }
+    if (activeTab === 'driver-management') {
+      loadLiveDrivers();
+    }
+    if (activeTab === 'maintenance') {
+      loadMaintenanceRecords();
+      loadLiveVehicles();
+    }
+    if (activeTab === 'fuel-management') {
+      loadFuelRecords();
+      loadLiveVehicles();
+    }
+    if (activeTab === 'trip-dispatch') {
+      loadFleetOperations();
+      loadLiveVehicles();
+      loadLiveDrivers();
+    }
+  }, [activeTab, loadLiveVehicles, loadLiveDrivers, loadMaintenanceRecords, loadFuelRecords, loadFleetOperations]);
+
+  useEffect(() => {
+    if (selectedVehicleId) {
+      loadVehicleDocuments(selectedVehicleId);
+    } else {
+      setDocuments([]);
+    }
+  }, [selectedVehicleId, loadVehicleDocuments]);
+
+  const handleCreateVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create vehicles');
+      return;
+    }
+    const res = await apiClient.createFleetVehicle({
+      ...vehicleForm,
+      registrationNumber: vehicleForm.registrationNumber.trim().toUpperCase(),
+      manufacturingYear: Number(vehicleForm.manufacturingYear),
+      capacity: Number(vehicleForm.capacity)
+    });
+    if (res.success) {
+      showToast(`Vehicle ${res.data.registrationNumber} created`);
+      setVehicleForm({ ...vehicleForm, registrationNumber: '' });
+      await loadLiveVehicles();
+    } else {
+      showToast(res.message || 'Failed to create vehicle');
+    }
+  };
+
+  const handleEditVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVehicleId) {
+      showToast('Select a vehicle to edit');
+      return;
+    }
+    const res = await apiClient.updateFleetVehicle(selectedVehicleId, {
+      make: vehicleForm.make,
+      model: vehicleForm.model,
+      variant: vehicleForm.variant || undefined,
+      manufacturingYear: Number(vehicleForm.manufacturingYear),
+      capacity: Number(vehicleForm.capacity),
+      status: vehicleForm.status,
+      ownerReference: vehicleForm.ownerReference || undefined,
+      insuranceReference: vehicleForm.insuranceReference || undefined,
+      fitnessReference: vehicleForm.fitnessReference || undefined,
+      permitReference: vehicleForm.permitReference || undefined
+    });
+    if (res.success) {
+      showToast(`Vehicle ${res.data.registrationNumber} updated`);
+      await loadLiveVehicles();
+    } else {
+      showToast(res.message || 'Failed to update vehicle');
+    }
+  };
+
+  const handleArchiveVehicle = async (vehicleId: string) => {
+    const res = await apiClient.archiveFleetVehicle(vehicleId);
+    showToast(res.success ? 'Vehicle archived' : res.message || 'Archive failed');
+    if (selectedVehicleId === vehicleId) setSelectedVehicleId('');
+    await loadLiveVehicles();
+  };
+
+  const handleViewVehicle = async (vehicleId: string) => {
+    const res = await apiClient.getFleetVehicle(vehicleId);
+    if (!res.success || !res.data) {
+      showToast(res.message || 'Vehicle not found');
+      return;
+    }
+    const row = res.data;
+    setSelectedVehicleId(row.id);
+    setVehicleForm({
+      registrationNumber: row.registrationNumber,
+      vehicleType: row.vehicleType,
+      make: row.make,
+      model: row.model,
+      variant: row.variant || '',
+      manufacturingYear: row.manufacturingYear,
+      fuelType: row.fuelType,
+      ownershipType: row.ownershipType,
+      ownerReference: row.ownerReference || '',
+      capacity: row.capacity,
+      capacityUnit: row.capacityUnit,
+      status: row.status,
+      insuranceReference: row.insuranceReference || '',
+      fitnessReference: row.fitnessReference || '',
+      permitReference: row.permitReference || ''
+    });
+    showToast(`Loaded ${row.registrationNumber}`);
+    await loadVehicleDocuments(row.id);
+  };
+
+  const handleCreateDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVehicleId) {
+      showToast('Select a vehicle before adding documents');
+      return;
+    }
+    const res = await apiClient.createFleetVehicleDocument({
+      vehicleId: selectedVehicleId,
+      documentType: documentForm.documentType,
+      documentNumber: documentForm.documentNumber.trim().toUpperCase() || undefined,
+      issueDate: documentForm.issueDate || undefined,
+      expiryDate: documentForm.expiryDate || undefined,
+      issuingAuthority: documentForm.issuingAuthority || undefined,
+      fileName: documentForm.fileName || undefined,
+      notes: documentForm.notes || undefined
+    });
+    if (res.success) {
+      showToast(`Document ${res.data.documentType} saved`);
+      setDocumentForm({ ...documentForm, documentNumber: '', notes: '' });
+      await loadVehicleDocuments(selectedVehicleId);
+    } else {
+      showToast(res.message || 'Failed to create document');
+    }
+  };
+
+  const handleUpdateDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDocumentId) return;
+    const res = await apiClient.updateFleetVehicleDocument(selectedDocumentId, {
+      issueDate: documentForm.issueDate || undefined,
+      expiryDate: documentForm.expiryDate || undefined,
+      issuingAuthority: documentForm.issuingAuthority || undefined,
+      notes: documentForm.notes || undefined
+    });
+    if (res.success) {
+      showToast(`Document updated (${res.data.status})`);
+      await loadVehicleDocuments(selectedVehicleId);
+    } else {
+      showToast(res.message || 'Failed to update document');
+    }
+  };
+
+  const handleArchiveDocument = async (documentId: string) => {
+    const res = await apiClient.archiveFleetVehicleDocument(documentId);
+    showToast(res.success ? 'Document archived' : res.message || 'Archive failed');
+    if (selectedDocumentId === documentId) setSelectedDocumentId('');
+    if (selectedVehicleId) await loadVehicleDocuments(selectedVehicleId);
+  };
+
+  const handleCreateMaintenance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await apiClient.createFleetMaintenance({
+      ...maintenanceForm,
+      vehicleId: maintenanceForm.vehicleId,
+      odometerReading: Number(maintenanceForm.odometerReading),
+      cost: Number(maintenanceForm.cost)
+    });
+    if (res.success) {
+      showToast('Maintenance record created');
+      await loadMaintenanceRecords();
+    } else {
+      showToast(res.message || 'Failed to create maintenance record');
+    }
+  };
+
+  const handleCreateFuel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await apiClient.createFleetFuel({
+      ...fuelForm,
+      quantity: Number(fuelForm.quantity),
+      rate: Number(fuelForm.rate)
+    });
+    if (res.success) {
+      showToast(`Fuel logged · total ₹${res.data.totalAmount}`);
+      await loadFuelRecords();
+    } else {
+      showToast(res.message || 'Failed to create fuel record');
+    }
+  };
+
+  const handleCreateOperation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await apiClient.createFleetOperation({
+      operationNumber: operationForm.operationNumber.trim().toUpperCase(),
+      vehicleId: operationForm.vehicleId,
+      driverId: operationForm.driverId,
+      destination: operationForm.destination || undefined,
+      status: operationForm.status
+    });
+    if (res.success) {
+      showToast(`Operation ${res.data.operationNumber} created`);
+      setOperationForm({ ...operationForm, operationNumber: '' });
+      await loadFleetOperations();
+    } else {
+      showToast(res.message || 'Failed to create fleet operation');
+    }
+  };
+
+  const handleCreateDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create drivers');
+      return;
+    }
+    const res = await apiClient.createFleetDriver({
+      fullName: driverForm.fullName.trim(),
+      phone: driverForm.phone.trim() || undefined,
+      licenseNumber: driverForm.licenseNumber.trim().toUpperCase(),
+      licenseClass: driverForm.licenseClass,
+      licenseIssueDate: driverForm.licenseIssueDate || undefined,
+      licenseExpiryDate: driverForm.licenseExpiryDate || undefined,
+      badgeCode: driverForm.badgeCode.trim() ? driverForm.badgeCode.trim().toUpperCase() : undefined,
+      status: driverForm.status,
+      assignedVehicleId: driverForm.assignedVehicleId || undefined,
+      notes: driverForm.notes.trim() || undefined
+    });
+    if (res.success) {
+      showToast(`Driver ${res.data.fullName} created`);
+      setDriverForm({ ...driverForm, fullName: '', licenseNumber: '', badgeCode: '' });
+      await loadLiveDrivers();
+    } else {
+      showToast(res.message || 'Failed to create driver');
+    }
+  };
+
+  const handleEditDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDriverId) {
+      showToast('Select a driver to edit');
+      return;
+    }
+    const res = await apiClient.updateFleetDriver(selectedDriverId, {
+      fullName: driverForm.fullName.trim(),
+      phone: driverForm.phone.trim() || undefined,
+      licenseClass: driverForm.licenseClass,
+      licenseIssueDate: driverForm.licenseIssueDate || undefined,
+      licenseExpiryDate: driverForm.licenseExpiryDate || undefined,
+      badgeCode: driverForm.badgeCode.trim() ? driverForm.badgeCode.trim().toUpperCase() : undefined,
+      status: driverForm.status,
+      assignedVehicleId: driverForm.assignedVehicleId || null,
+      notes: driverForm.notes.trim() || undefined
+    });
+    if (res.success) {
+      showToast(`Driver ${res.data.fullName} updated`);
+      await loadLiveDrivers();
+    } else {
+      showToast(res.message || 'Failed to update driver');
+    }
+  };
+
+  const handleArchiveDriver = async (driverId: string) => {
+    const res = await apiClient.archiveFleetDriver(driverId);
+    showToast(res.success ? 'Driver archived' : res.message || 'Archive failed');
+    if (selectedDriverId === driverId) setSelectedDriverId('');
+    await loadLiveDrivers();
+  };
+
+  const handleViewDriver = async (driverId: string) => {
+    const res = await apiClient.getFleetDriver(driverId);
+    if (!res.success || !res.data) {
+      showToast(res.message || 'Driver not found');
+      return;
+    }
+    const row = res.data;
+    setSelectedDriverId(row.id);
+    setDriverForm({
+      fullName: row.fullName,
+      phone: row.phone || '',
+      licenseNumber: row.licenseNumber,
+      licenseClass: row.licenseClass,
+      licenseIssueDate: row.licenseIssueDate || '',
+      licenseExpiryDate: row.licenseExpiryDate || '',
+      badgeCode: row.badgeCode || '',
+      status: row.status,
+      assignedVehicleId: row.assignedVehicleId || '',
+      notes: row.notes || ''
+    });
+    showToast(`Loaded ${row.fullName}`);
   };
 
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -85,11 +584,7 @@ export const FleetOperationsPhase18Section: React.FC = () => {
     showToast(`Trip ${createdTrip.tripId} dispatched! OTP sent to recipient & GPS live tracking active.`);
   };
 
-  const filteredVehicles = vehicles.filter(v =>
-    v.registrationNo.toLowerCase().includes(searchVehicle.toLowerCase()) ||
-    v.makeModel.toLowerCase().includes(searchVehicle.toLowerCase()) ||
-    v.assignedDriver.toLowerCase().includes(searchVehicle.toLowerCase())
-  );
+  const filteredVehicles = vehicles;
 
   return (
     <div className="space-y-8">
@@ -342,79 +837,183 @@ export const FleetOperationsPhase18Section: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 2</span>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 2 · Live PostgreSQL</span>
               <h2 className="text-xl font-bold text-white mt-1">Vehicle Master Directory &amp; Compliance Vault</h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search registration or driver..."
+                  placeholder="Search registration or make..."
                   value={searchVehicle}
                   onChange={(e) => setSearchVehicle(e.target.value)}
                   className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
-
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All statuses</option>
+                {['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RETIRED'].map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All types</option>
+                {['TIPPER', 'TRAILER', 'TANKER', 'PICKUP', 'LOWBED', 'OTHER'].map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
               <button
-                onClick={() => showToast('Opened New Commercial Vehicle Registration Modal')}
-                className="px-4 py-2 bg-blue-500 text-slate-950 font-bold text-xs rounded-xl shadow-md"
+                onClick={() => loadLiveVehicles()}
+                className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl"
               >
-                + Add Vehicle Record
+                Refresh
               </button>
             </div>
           </div>
+
+          {vehiclesError && (
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">{vehiclesError}</div>
+          )}
+          {vehiclesLoading && <p className="text-xs text-slate-400">Loading vehicles…</p>}
+
+          <form onSubmit={selectedVehicleId ? handleEditVehicle : handleCreateVehicle} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="KA-19-AB-4491" value={vehicleForm.registrationNumber} onChange={(e) => setVehicleForm({ ...vehicleForm, registrationNumber: e.target.value })} required={!selectedVehicleId} disabled={Boolean(selectedVehicleId)} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.vehicleType} onChange={(e) => setVehicleForm({ ...vehicleForm, vehicleType: e.target.value })}>
+              {['TIPPER', 'TRAILER', 'TANKER', 'PICKUP', 'LOWBED', 'OTHER'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Make" value={vehicleForm.make} onChange={(e) => setVehicleForm({ ...vehicleForm, make: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Model" value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Variant" value={vehicleForm.variant} onChange={(e) => setVehicleForm({ ...vehicleForm, variant: e.target.value })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Year" value={vehicleForm.manufacturingYear} onChange={(e) => setVehicleForm({ ...vehicleForm, manufacturingYear: Number(e.target.value) })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.fuelType} onChange={(e) => setVehicleForm({ ...vehicleForm, fuelType: e.target.value })}>
+              {['DIESEL', 'PETROL', 'CNG', 'ELECTRIC', 'HYBRID'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.ownershipType} onChange={(e) => setVehicleForm({ ...vehicleForm, ownershipType: e.target.value })}>
+              {['COMPANY', 'ATTACHED', 'CONTRACTOR', 'LEASED'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Owner / vendor" value={vehicleForm.ownerReference} onChange={(e) => setVehicleForm({ ...vehicleForm, ownerReference: e.target.value })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Capacity" value={vehicleForm.capacity} onChange={(e) => setVehicleForm({ ...vehicleForm, capacity: Number(e.target.value) })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.status} onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value })}>
+              {['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RETIRED'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Insurance ref" value={vehicleForm.insuranceReference} onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceReference: e.target.value })} />
+            <div className="md:col-span-4 flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">
+                {selectedVehicleId ? 'Save vehicle changes' : '+ Add Vehicle Record'}
+              </button>
+              {selectedVehicleId && (
+                <button type="button" onClick={() => { setSelectedVehicleId(''); setVehicleForm({ ...vehicleForm, registrationNumber: '' }); }} className="px-4 py-2 bg-slate-800 text-white rounded-xl">
+                  New vehicle
+                </button>
+              )}
+            </div>
+          </form>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredVehicles.map((veh) => (
               <div key={veh.id} className="p-5 bg-slate-950 border border-slate-800 hover:border-blue-500/50 rounded-2xl space-y-3 font-mono text-xs transition-all">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-blue-400 font-bold text-sm">{veh.registrationNo}</span>
+                  <span className="text-blue-400 font-bold text-sm">{veh.registrationNumber}</span>
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                    veh.currentStatus === 'DISPATCHED_IN_TRIP' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                    veh.status === 'MAINTENANCE' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                   }`}>
-                    {veh.currentStatus}
+                    {veh.status}
                   </span>
                 </div>
 
-                <h4 className="text-sm font-bold text-white">{veh.makeModel}</h4>
+                <h4 className="text-sm font-bold text-white">{veh.make} {veh.model} {veh.variant || ''}</h4>
 
                 <div className="space-y-1.5 text-slate-300 text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Payload Capacity:</span>
-                    <strong className="text-amber-300">{veh.capacityTons} Tons</strong>
+                    <strong className="text-amber-300">{veh.capacity} {veh.capacityUnit}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Ownership:</span>
-                    <span>{veh.ownerType}</span>
+                    <span>{veh.ownershipType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Assigned Driver:</span>
-                    <strong className="text-white">{veh.assignedDriver}</strong>
+                    <span className="text-slate-400">Owner / vendor:</span>
+                    <strong className="text-white">{veh.ownerReference || '—'}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">GPS Device ID:</span>
-                    <span className="text-purple-300">{veh.gpsDeviceId}</span>
+                    <span className="text-slate-400">Year / fuel:</span>
+                    <span className="text-purple-300">{veh.manufacturingYear} · {veh.fuelType}</span>
                   </div>
                   <div className="flex justify-between border-t border-slate-800/80 pt-1">
                     <span className="text-slate-400">Fitness / Insurance:</span>
-                    <span className="text-emerald-400">Valid till {veh.fitnessExpiryDate}</span>
+                    <span className="text-emerald-400">{veh.fitnessReference || veh.insuranceReference || 'Not set'}</span>
                   </div>
                 </div>
 
                 <div className="pt-2 flex justify-end gap-2">
                   <button
-                    onClick={() => showToast(`Opened digital RC & Compliance Vault for ${veh.registrationNo}`)}
+                    onClick={() => handleViewVehicle(veh.id)}
                     className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] rounded border border-slate-800 flex items-center gap-1"
                   >
-                    <FileText className="w-3.5 h-3.5" /> View Digital Vault
+                    <FileText className="w-3.5 h-3.5" /> View / Edit
+                  </button>
+                  <button
+                    onClick={() => handleArchiveVehicle(veh.id)}
+                    className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 text-[11px] rounded border border-rose-800"
+                  >
+                    Archive
                   </button>
                 </div>
               </div>
             ))}
+            {!vehiclesLoading && filteredVehicles.length === 0 && (
+              <p className="text-xs text-slate-500 md:col-span-3">No live vehicles. Login via Shared Core, then create a record.</p>
+            )}
           </div>
+
+          {selectedVehicleId && (
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-bold text-white">Compliance Documents · Live PostgreSQL</h3>
+                <button onClick={() => loadVehicleDocuments(selectedVehicleId)} className="px-3 py-1.5 text-[11px] bg-slate-900 border border-slate-700 rounded-lg text-slate-300">Refresh</button>
+              </div>
+              {documentsError && <p className="text-xs text-amber-300">{documentsError}</p>}
+              {documentsLoading && <p className="text-xs text-slate-400">Loading documents…</p>}
+              <form onSubmit={selectedDocumentId ? handleUpdateDocument : handleCreateDocument} className="grid md:grid-cols-4 gap-3 text-xs">
+                <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={documentForm.documentType} onChange={(e) => setDocumentForm({ ...documentForm, documentType: e.target.value })} disabled={Boolean(selectedDocumentId)}>
+                  {['INSURANCE', 'FITNESS', 'PERMIT', 'REGISTRATION', 'POLLUTION', 'TAX', 'OTHER'].map((type) => <option key={type}>{type}</option>)}
+                </select>
+                <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Document number" value={documentForm.documentNumber} onChange={(e) => setDocumentForm({ ...documentForm, documentNumber: e.target.value })} disabled={Boolean(selectedDocumentId)} />
+                <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={documentForm.issueDate} onChange={(e) => setDocumentForm({ ...documentForm, issueDate: e.target.value })} />
+                <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={documentForm.expiryDate} onChange={(e) => setDocumentForm({ ...documentForm, expiryDate: e.target.value })} />
+                <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Issuing authority" value={documentForm.issuingAuthority} onChange={(e) => setDocumentForm({ ...documentForm, issuingAuthority: e.target.value })} />
+                <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="File name / vault reference" value={documentForm.fileName} onChange={(e) => setDocumentForm({ ...documentForm, fileName: e.target.value })} />
+                <div className="md:col-span-4 flex gap-2">
+                  <button type="submit" className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl">
+                    {selectedDocumentId ? 'Update document' : '+ Add document'}
+                  </button>
+                  {selectedDocumentId && (
+                    <button type="button" onClick={() => { setSelectedDocumentId(''); setDocumentForm({ documentType: 'INSURANCE', documentNumber: '', issueDate: '', expiryDate: '', issuingAuthority: '', fileName: '', notes: '' }); }} className="px-4 py-2 bg-slate-800 text-white rounded-xl">New document</button>
+                  )}
+                </div>
+              </form>
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center text-xs font-mono">
+                    <div>
+                      <strong className="text-blue-300">{doc.documentType}</strong>
+                      <span className="text-slate-400 ml-2">{doc.documentNumber || '—'}</span>
+                      <p className="text-slate-500 text-[10px] mt-1">Expiry: {doc.expiryDate || '—'} · {doc.issuingAuthority || 'No authority'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${doc.status === 'EXPIRED' ? 'bg-rose-500/20 text-rose-300' : doc.status === 'EXPIRING_SOON' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>{doc.status}</span>
+                      <button onClick={() => { setSelectedDocumentId(doc.id); setDocumentForm({ documentType: doc.documentType, documentNumber: doc.documentNumber || '', issueDate: doc.issueDate || '', expiryDate: doc.expiryDate || '', issuingAuthority: doc.issuingAuthority || '', fileName: doc.fileName || '', notes: doc.notes || '' }); }} className="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-slate-300">Edit</button>
+                      <button onClick={() => handleArchiveDocument(doc.id)} className="px-2 py-1 bg-rose-950/60 rounded border border-rose-800 text-rose-200">Archive</button>
+                    </div>
+                  </div>
+                ))}
+                {!documentsLoading && documents.length === 0 && <p className="text-xs text-slate-500">No documents for this vehicle yet.</p>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -464,49 +1063,172 @@ export const FleetOperationsPhase18Section: React.FC = () => {
       {/* TAB 4: DRIVER MANAGEMENT */}
       {activeTab === 'driver-management' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 4</span>
-            <h2 className="text-xl font-bold text-white mt-1">Driver Master Directory, Mining Badges &amp; Fuel Incentive Wallets</h2>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 4 · Live PostgreSQL</span>
+              <h2 className="text-xl font-bold text-white mt-1">Driver Master Directory, Licenses &amp; Vehicle Assignment</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, license, badge..."
+                  value={searchDriver}
+                  onChange={(e) => setSearchDriver(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <select value={driverStatusFilter} onChange={(e) => setDriverStatusFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All statuses</option>
+                {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <select value={driverLicenseFilter} onChange={(e) => setDriverLicenseFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All classes</option>
+                {['LMV', 'HMV', 'HGMV', 'TRANS', 'OTHER'].map((cls) => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+              <button onClick={() => loadLiveDrivers()} className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl">
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {driversError && (
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">{driversError}</div>
+          )}
+          {driversLoading && <p className="text-xs text-slate-400">Loading drivers…</p>}
+
+          <form onSubmit={selectedDriverId ? handleEditDriver : handleCreateDriver} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Full name" value={driverForm.fullName} onChange={(e) => setDriverForm({ ...driverForm, fullName: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Phone" value={driverForm.phone} onChange={(e) => setDriverForm({ ...driverForm, phone: e.target.value })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="KA19-2022000123" value={driverForm.licenseNumber} onChange={(e) => setDriverForm({ ...driverForm, licenseNumber: e.target.value })} required={!selectedDriverId} disabled={Boolean(selectedDriverId)} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseClass} onChange={(e) => setDriverForm({ ...driverForm, licenseClass: e.target.value })}>
+              {['LMV', 'HMV', 'HGMV', 'TRANS', 'OTHER'].map((cls) => <option key={cls}>{cls}</option>)}
+            </select>
+            <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseIssueDate} onChange={(e) => setDriverForm({ ...driverForm, licenseIssueDate: e.target.value })} />
+            <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseExpiryDate} onChange={(e) => setDriverForm({ ...driverForm, licenseExpiryDate: e.target.value })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Badge / driver code" value={driverForm.badgeCode} onChange={(e) => setDriverForm({ ...driverForm, badgeCode: e.target.value })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.status} onChange={(e) => setDriverForm({ ...driverForm, status: e.target.value })}>
+              {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" value={driverForm.assignedVehicleId} onChange={(e) => setDriverForm({ ...driverForm, assignedVehicleId: e.target.value })}>
+              <option value="">No assigned vehicle</option>
+              {assignableVehicles.map((veh) => (
+                <option key={veh.id} value={veh.id}>{veh.registrationNumber} · {veh.status}</option>
+              ))}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Notes" value={driverForm.notes} onChange={(e) => setDriverForm({ ...driverForm, notes: e.target.value })} />
+            <div className="md:col-span-4 flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">
+                {selectedDriverId ? 'Save driver changes' : '+ Add Driver Record'}
+              </button>
+              {selectedDriverId && (
+                <button type="button" onClick={() => { setSelectedDriverId(''); setDriverForm({ ...driverForm, fullName: '', licenseNumber: '', badgeCode: '', assignedVehicleId: '' }); }} className="px-4 py-2 bg-slate-800 text-white rounded-xl">
+                  New driver
+                </button>
+              )}
+            </div>
+          </form>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {drivers.map((drv) => (
               <div key={drv.id} className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-blue-400 font-bold">{drv.id}</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">
-                    Score: {drv.performanceScore}/100
+                  <span className="text-blue-400 font-bold">{drv.licenseNumber}</span>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    drv.status === 'SUSPENDED' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                  }`}>
+                    {drv.status}
                   </span>
                 </div>
-
-                <h4 className="text-sm font-bold text-white">{drv.name}</h4>
-
+                <h4 className="text-sm font-bold text-white">{drv.fullName}</h4>
                 <div className="space-y-1.5 text-slate-300 text-[11px]">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">License No:</span>
-                    <span>{drv.licenseNo}</span>
+                    <span className="text-slate-400">Class:</span>
+                    <span>{drv.licenseClass}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Mining Badge No:</span>
-                    <span className="text-amber-300">{drv.badgeNo}</span>
+                    <span className="text-slate-400">Badge:</span>
+                    <span className="text-amber-300">{drv.badgeCode || '—'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Assigned Vehicle:</span>
-                    <strong className="text-white">{drv.assignedVehicleReg}</strong>
+                    <span className="text-slate-400">Phone:</span>
+                    <span>{drv.phone || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Assigned vehicle:</span>
+                    <strong className="text-white">
+                      {assignableVehicles.find((veh) => veh.id === drv.assignedVehicleId)?.registrationNumber || drv.assignedVehicleId || '—'}
+                    </strong>
                   </div>
                   <div className="flex justify-between border-t border-slate-800/80 pt-1">
-                    <span className="text-slate-400">Driver Wallet Balance:</span>
-                    <strong className="text-emerald-400">₹{drv.walletBalanceRs.toLocaleString()}</strong>
+                    <span className="text-slate-400">License expiry:</span>
+                    <span className="text-emerald-400">{drv.licenseExpiryDate || '—'}</span>
                   </div>
+                </div>
+                <div className="pt-2 flex justify-end gap-2">
+                  <button onClick={() => handleViewDriver(drv.id)} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] rounded border border-slate-800 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> View / Edit
+                  </button>
+                  <button onClick={() => handleArchiveDriver(drv.id)} className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 text-[11px] rounded border border-rose-800">
+                    Archive
+                  </button>
                 </div>
               </div>
             ))}
+            {!driversLoading && drivers.length === 0 && (
+              <p className="text-xs text-slate-500 md:col-span-3">No drivers yet. Create a driver master record.</p>
+            )}
           </div>
         </div>
       )}
 
       {/* TAB 5: TRIP PLANNING & DISPATCH */}
       {activeTab === 'trip-dispatch' && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Fleet Operations · Live PostgreSQL</span>
+                <h2 className="text-lg font-bold text-white mt-1">Vehicle + Driver Assignment Layer</h2>
+              </div>
+              <button onClick={() => loadFleetOperations()} className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl">Refresh</button>
+            </div>
+            {operationsError && <p className="text-xs text-amber-300">{operationsError}</p>}
+            <form onSubmit={handleCreateOperation} className="grid md:grid-cols-4 gap-3 text-xs">
+              <input className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" placeholder="OP-2026-001" value={operationForm.operationNumber} onChange={(e) => setOperationForm({ ...operationForm, operationNumber: e.target.value })} required />
+              <select className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" value={operationForm.vehicleId} onChange={(e) => setOperationForm({ ...operationForm, vehicleId: e.target.value })} required>
+                <option value="">Select vehicle</option>
+                {vehicles.filter((v) => v.status === 'ACTIVE').map((veh) => <option key={veh.id} value={veh.id}>{veh.registrationNumber}</option>)}
+              </select>
+              <select className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" value={operationForm.driverId} onChange={(e) => setOperationForm({ ...operationForm, driverId: e.target.value })} required>
+                <option value="">Select driver</option>
+                {drivers.filter((d) => d.status === 'ACTIVE').map((drv) => <option key={drv.id} value={drv.id}>{drv.fullName}</option>)}
+              </select>
+              <input className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" placeholder="Destination" value={operationForm.destination} onChange={(e) => setOperationForm({ ...operationForm, destination: e.target.value })} />
+              <div className="md:col-span-4">
+                <button type="submit" className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl">+ Create fleet operation</button>
+              </div>
+            </form>
+            {operationsLoading && <p className="text-xs text-slate-400">Loading operations…</p>}
+            <div className="space-y-2 font-mono text-xs">
+              {operations.map((op) => (
+                <div key={op.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                  <div>
+                    <strong className="text-blue-300">{op.operationNumber}</strong>
+                    <p className="text-slate-400">{vehicles.find((v) => v.id === op.vehicleId)?.registrationNumber || op.vehicleId} · {drivers.find((d) => d.id === op.driverId)?.fullName || op.driverId}</p>
+                    {op.gatePassId && <p className="text-[10px] text-purple-300">Gate pass: {op.gatePassId}</p>}
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">{op.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Trip Creation Form */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
@@ -616,9 +1338,8 @@ export const FleetOperationsPhase18Section: React.FC = () => {
             </div>
           </div>
         </div>
+        </div>
       )}
-
-      {/* TAB 6: RENTAL CONTRACTS */}
       {activeTab === 'rental-contracts' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="border-b border-slate-800 pb-4">
@@ -683,26 +1404,41 @@ export const FleetOperationsPhase18Section: React.FC = () => {
       {/* TAB 8: FUEL MANAGEMENT */}
       {activeTab === 'fuel-management' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 9</span>
-            <h2 className="text-xl font-bold text-white mt-1">Fuel Consumption Telematics &amp; AI Anti-Theft Analysis</h2>
+          <div className="border-b border-slate-800 pb-4 flex justify-between items-center">
+            <div>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 9 · Live PostgreSQL</span>
+              <h2 className="text-xl font-bold text-white mt-1">Fuel Consumption &amp; Audit Ledger</h2>
+            </div>
+            <button onClick={() => loadFuelRecords()} className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl">Refresh</button>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-slate-400 text-[10px] block">Daily Fuel Issued</span>
-              <strong className="text-amber-400 text-lg">1,840 Liters</strong>
+          {fuelError && <p className="text-xs text-amber-300">{fuelError}</p>}
+          <form onSubmit={handleCreateFuel} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={fuelForm.vehicleId} onChange={(e) => setFuelForm({ ...fuelForm, vehicleId: e.target.value })} required>
+              <option value="">Select vehicle</option>
+              {vehicles.map((veh) => <option key={veh.id} value={veh.id}>{veh.registrationNumber}</option>)}
+            </select>
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={fuelForm.fuelType} onChange={(e) => setFuelForm({ ...fuelForm, fuelType: e.target.value })}>
+              {['DIESEL', 'PETROL', 'CNG', 'ELECTRIC', 'HYBRID', 'OTHER'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Quantity" value={fuelForm.quantity} onChange={(e) => setFuelForm({ ...fuelForm, quantity: Number(e.target.value) })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Rate" value={fuelForm.rate} onChange={(e) => setFuelForm({ ...fuelForm, rate: Number(e.target.value) })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Station / vendor" value={fuelForm.stationName} onChange={(e) => setFuelForm({ ...fuelForm, stationName: e.target.value })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Receipt reference" value={fuelForm.referenceNumber} onChange={(e) => setFuelForm({ ...fuelForm, referenceNumber: e.target.value })} />
+            <div className="md:col-span-4">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">+ Log fuel (server-calculated total)</button>
             </div>
-
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-slate-400 text-[10px] block">Fleet Average Mileage</span>
-              <strong className="text-emerald-400 text-lg">2.82 Km / Liter</strong>
-            </div>
-
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-slate-400 text-[10px] block">AI Anti-Theft Status</span>
-              <strong className="text-blue-400 text-lg">0 Fuel Drop Anomalies</strong>
-            </div>
+          </form>
+          {fuelLoading && <p className="text-xs text-slate-400">Loading fuel records…</p>}
+          <div className="space-y-3 font-mono text-xs">
+            {fuelRecords.map((row) => (
+              <div key={row.id} className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                <div>
+                  <strong className="text-blue-400">{vehicles.find((v) => v.id === row.vehicleId)?.registrationNumber || row.vehicleId}</strong>
+                  <p className="text-slate-400">{row.quantity} {row.unit} @ ₹{row.rate} · {row.fuelType}</p>
+                </div>
+                <strong className="text-emerald-400">₹{row.totalAmount}</strong>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -710,21 +1446,41 @@ export const FleetOperationsPhase18Section: React.FC = () => {
       {/* TAB 9: MAINTENANCE */}
       {activeTab === 'maintenance' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 10</span>
-            <h2 className="text-xl font-bold text-white mt-1">Vehicle Workshop Maintenance &amp; Tyre Management</h2>
+          <div className="border-b border-slate-800 pb-4 flex justify-between items-center">
+            <div>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 10 · Live PostgreSQL</span>
+              <h2 className="text-xl font-bold text-white mt-1">Vehicle Workshop Maintenance</h2>
+            </div>
+            <button onClick={() => loadMaintenanceRecords()} className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl">Refresh</button>
           </div>
-
+          {maintenanceError && <p className="text-xs text-amber-300">{maintenanceError}</p>}
+          <form onSubmit={handleCreateMaintenance} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={maintenanceForm.vehicleId} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, vehicleId: e.target.value })} required>
+              <option value="">Select vehicle</option>
+              {vehicles.map((veh) => <option key={veh.id} value={veh.id}>{veh.registrationNumber}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Maintenance type" value={maintenanceForm.maintenanceType} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenanceType: e.target.value })} />
+            <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={maintenanceForm.serviceDate} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, serviceDate: e.target.value })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Cost" value={maintenanceForm.cost} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, cost: Number(e.target.value) })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Workshop" value={maintenanceForm.workshopName} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, workshopName: e.target.value })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={maintenanceForm.status} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, status: e.target.value })}>
+              {['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <div className="md:col-span-4">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">+ Create maintenance record</button>
+            </div>
+          </form>
+          {maintenanceLoading && <p className="text-xs text-slate-400">Loading maintenance records…</p>}
           <div className="space-y-3 font-mono text-xs">
-            {MAINTENANCE_LOGS.map((maint) => (
-              <div key={maint.jobCardId} className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+            {maintenanceRecords.map((maint) => (
+              <div key={maint.id} className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
                 <div>
-                  <strong className="text-blue-400 block">{maint.jobCardId} — {maint.vehicleNo}</strong>
-                  <span className="text-white font-bold">{maint.maintenanceType}</span>
-                  <p className="text-slate-400 text-[11px]">{maint.workshopName} • Odometer: {maint.odometerReadingKm} Km</p>
+                  <strong className="text-blue-400 block">{maint.maintenanceType}</strong>
+                  <span className="text-white font-bold">{vehicles.find((v) => v.id === maint.vehicleId)?.registrationNumber || maint.vehicleId}</span>
+                  <p className="text-slate-400 text-[11px]">{maint.workshopName || 'Workshop'} · {maint.serviceDate}</p>
                 </div>
                 <div className="text-right">
-                  <strong className="text-emerald-400 block text-sm">₹{maint.costRs.toLocaleString()}</strong>
+                  <strong className="text-emerald-400 block text-sm">₹{maint.cost}</strong>
                   <span className="text-emerald-300 text-[10px]">{maint.status}</span>
                 </div>
               </div>
