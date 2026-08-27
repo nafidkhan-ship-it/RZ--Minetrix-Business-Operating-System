@@ -1,4 +1,5 @@
 import { hashPassword } from '../db/database.js';
+import { Notification } from '../db/schema.js';
 import { signToken } from '../middleware/authMiddleware.js';
 import {
   UserRepository,
@@ -122,9 +123,46 @@ export class NotificationService {
     return { success: true, data: { notifications: notifs, unreadCount } };
   }
 
-  async createNotification(tenantId: string, recipientUserId: string, title: string, body: string, type: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS') {
-    const notif = await notifRepo.create({ tenantId, recipientUserId, title, body, type, channel: 'IN_APP' });
+  async createNotification(
+    tenantId: string,
+    recipientUserId: string,
+    title: string,
+    body: string,
+    type: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS',
+    options?: {
+      relatedModule?: string;
+      relatedRecordType?: string;
+      relatedRecordId?: string;
+      linkUrl?: string;
+      channel?: Notification['channel'];
+    }
+  ) {
+    const notif = await notifRepo.create({
+      tenantId,
+      recipientUserId,
+      title,
+      body,
+      type,
+      channel: options?.channel || 'IN_APP',
+      relatedModule: options?.relatedModule,
+      relatedRecordType: options?.relatedRecordType,
+      relatedRecordId: options?.relatedRecordId,
+      linkUrl: options?.linkUrl
+    });
     return { success: true, data: notif };
+  }
+
+  async markNotificationRead(tenantId: string, userId: string, notificationId: string) {
+    const updated = await notifRepo.markAsRead(notificationId, tenantId, userId);
+    if (!updated) {
+      return { success: false, error: 'NOT_FOUND', message: 'Notification not found.' };
+    }
+    return { success: true, data: updated };
+  }
+
+  async markAllNotificationsRead(tenantId: string, userId: string) {
+    const count = await notifRepo.markAllAsRead(tenantId, userId);
+    return { success: true, data: { markedCount: count } };
   }
 }
 
