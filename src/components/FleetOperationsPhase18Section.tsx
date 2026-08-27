@@ -10,16 +10,12 @@ import {
 
 import {
   FLEET_GROUPS,
-  VEHICLE_MASTER_LIST,
-  DRIVER_DIRECTORY,
   MOCK_TRIP_LOGS,
   RENTAL_CONTRACTS,
   MAINTENANCE_LOGS,
   USED_VEHICLE_MARKETPLACE,
   FREIGHT_MARKETPLACE_LOADS,
-  VehicleMasterRecord,
-  TripLogRecord,
-  DriverRecord
+  TripLogRecord
 } from '../data/fleetOperationsPhase18Data';
 import { apiClient } from '../services/apiClient';
 
@@ -44,13 +40,32 @@ export const FleetOperationsPhase18Section: React.FC = () => {
 
   // States
   const [vehicles, setVehicles] = useState<any[]>([]);
-  const [drivers] = useState<DriverRecord[]>(DRIVER_DIRECTORY);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [assignableVehicles, setAssignableVehicles] = useState<any[]>([]);
   const [trips, setTrips] = useState<TripLogRecord[]>(MOCK_TRIP_LOGS);
   const [searchVehicle, setSearchVehicle] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [searchDriver, setSearchDriver] = useState('');
+  const [driverStatusFilter, setDriverStatusFilter] = useState('');
+  const [driverLicenseFilter, setDriverLicenseFilter] = useState('');
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const [vehiclesError, setVehiclesError] = useState<string | null>(null);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [driversError, setDriversError] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [driverForm, setDriverForm] = useState({
+    fullName: '',
+    phone: '',
+    licenseNumber: '',
+    licenseClass: 'HMV',
+    licenseIssueDate: '',
+    licenseExpiryDate: '',
+    badgeCode: '',
+    status: 'ACTIVE',
+    assignedVehicleId: '',
+    notes: ''
+  });
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [vehicleForm, setVehicleForm] = useState({
     registrationNumber: '',
@@ -108,11 +123,45 @@ export const FleetOperationsPhase18Section: React.FC = () => {
     setVehiclesLoading(false);
   }, [searchVehicle, statusFilter, typeFilter]);
 
+  const loadLiveDrivers = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setDrivers([]);
+      setAssignableVehicles([]);
+      setDriversError('Login via Shared Core to load live drivers.');
+      return;
+    }
+    setDriversLoading(true);
+    setDriversError(null);
+    const [driverRes, vehicleRes] = await Promise.all([
+      apiClient.listFleetDrivers({
+        search: searchDriver || undefined,
+        status: driverStatusFilter || undefined,
+        licenseClass: driverLicenseFilter || undefined
+      }),
+      apiClient.listFleetVehicles()
+    ]);
+    if (driverRes.success && Array.isArray(driverRes.data)) {
+      setDrivers(driverRes.data);
+    } else {
+      setDrivers([]);
+      setDriversError(driverRes.message || 'Unable to load drivers');
+    }
+    if (vehicleRes.success && Array.isArray(vehicleRes.data)) {
+      setAssignableVehicles(vehicleRes.data.filter((row: { status?: string }) => row.status !== 'RETIRED'));
+    } else {
+      setAssignableVehicles([]);
+    }
+    setDriversLoading(false);
+  }, [searchDriver, driverStatusFilter, driverLicenseFilter]);
+
   useEffect(() => {
     if (activeTab === 'vehicle-master') {
       loadLiveVehicles();
     }
-  }, [activeTab, loadLiveVehicles]);
+    if (activeTab === 'driver-management') {
+      loadLiveDrivers();
+    }
+  }, [activeTab, loadLiveVehicles, loadLiveDrivers]);
 
   const handleCreateVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +243,88 @@ export const FleetOperationsPhase18Section: React.FC = () => {
       permitReference: row.permitReference || ''
     });
     showToast(`Loaded ${row.registrationNumber}`);
+  };
+
+  const handleCreateDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create drivers');
+      return;
+    }
+    const res = await apiClient.createFleetDriver({
+      fullName: driverForm.fullName.trim(),
+      phone: driverForm.phone.trim() || undefined,
+      licenseNumber: driverForm.licenseNumber.trim().toUpperCase(),
+      licenseClass: driverForm.licenseClass,
+      licenseIssueDate: driverForm.licenseIssueDate || undefined,
+      licenseExpiryDate: driverForm.licenseExpiryDate || undefined,
+      badgeCode: driverForm.badgeCode.trim() ? driverForm.badgeCode.trim().toUpperCase() : undefined,
+      status: driverForm.status,
+      assignedVehicleId: driverForm.assignedVehicleId || undefined,
+      notes: driverForm.notes.trim() || undefined
+    });
+    if (res.success) {
+      showToast(`Driver ${res.data.fullName} created`);
+      setDriverForm({ ...driverForm, fullName: '', licenseNumber: '', badgeCode: '' });
+      await loadLiveDrivers();
+    } else {
+      showToast(res.message || 'Failed to create driver');
+    }
+  };
+
+  const handleEditDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDriverId) {
+      showToast('Select a driver to edit');
+      return;
+    }
+    const res = await apiClient.updateFleetDriver(selectedDriverId, {
+      fullName: driverForm.fullName.trim(),
+      phone: driverForm.phone.trim() || undefined,
+      licenseClass: driverForm.licenseClass,
+      licenseIssueDate: driverForm.licenseIssueDate || undefined,
+      licenseExpiryDate: driverForm.licenseExpiryDate || undefined,
+      badgeCode: driverForm.badgeCode.trim() ? driverForm.badgeCode.trim().toUpperCase() : undefined,
+      status: driverForm.status,
+      assignedVehicleId: driverForm.assignedVehicleId || null,
+      notes: driverForm.notes.trim() || undefined
+    });
+    if (res.success) {
+      showToast(`Driver ${res.data.fullName} updated`);
+      await loadLiveDrivers();
+    } else {
+      showToast(res.message || 'Failed to update driver');
+    }
+  };
+
+  const handleArchiveDriver = async (driverId: string) => {
+    const res = await apiClient.archiveFleetDriver(driverId);
+    showToast(res.success ? 'Driver archived' : res.message || 'Archive failed');
+    if (selectedDriverId === driverId) setSelectedDriverId('');
+    await loadLiveDrivers();
+  };
+
+  const handleViewDriver = async (driverId: string) => {
+    const res = await apiClient.getFleetDriver(driverId);
+    if (!res.success || !res.data) {
+      showToast(res.message || 'Driver not found');
+      return;
+    }
+    const row = res.data;
+    setSelectedDriverId(row.id);
+    setDriverForm({
+      fullName: row.fullName,
+      phone: row.phone || '',
+      licenseNumber: row.licenseNumber,
+      licenseClass: row.licenseClass,
+      licenseIssueDate: row.licenseIssueDate || '',
+      licenseExpiryDate: row.licenseExpiryDate || '',
+      badgeCode: row.badgeCode || '',
+      status: row.status,
+      assignedVehicleId: row.assignedVehicleId || '',
+      notes: row.notes || ''
+    });
+    showToast(`Loaded ${row.fullName}`);
   };
 
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -651,43 +782,126 @@ export const FleetOperationsPhase18Section: React.FC = () => {
       {/* TAB 4: DRIVER MANAGEMENT */}
       {activeTab === 'driver-management' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 4</span>
-            <h2 className="text-xl font-bold text-white mt-1">Driver Master Directory, Mining Badges &amp; Fuel Incentive Wallets</h2>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 4 · Live PostgreSQL</span>
+              <h2 className="text-xl font-bold text-white mt-1">Driver Master Directory, Licenses &amp; Vehicle Assignment</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, license, badge..."
+                  value={searchDriver}
+                  onChange={(e) => setSearchDriver(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <select value={driverStatusFilter} onChange={(e) => setDriverStatusFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All statuses</option>
+                {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <select value={driverLicenseFilter} onChange={(e) => setDriverLicenseFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All classes</option>
+                {['LMV', 'HMV', 'HGMV', 'TRANS', 'OTHER'].map((cls) => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+              <button onClick={() => loadLiveDrivers()} className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl">
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {driversError && (
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">{driversError}</div>
+          )}
+          {driversLoading && <p className="text-xs text-slate-400">Loading drivers…</p>}
+
+          <form onSubmit={selectedDriverId ? handleEditDriver : handleCreateDriver} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Full name" value={driverForm.fullName} onChange={(e) => setDriverForm({ ...driverForm, fullName: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Phone" value={driverForm.phone} onChange={(e) => setDriverForm({ ...driverForm, phone: e.target.value })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="KA19-2022000123" value={driverForm.licenseNumber} onChange={(e) => setDriverForm({ ...driverForm, licenseNumber: e.target.value })} required={!selectedDriverId} disabled={Boolean(selectedDriverId)} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseClass} onChange={(e) => setDriverForm({ ...driverForm, licenseClass: e.target.value })}>
+              {['LMV', 'HMV', 'HGMV', 'TRANS', 'OTHER'].map((cls) => <option key={cls}>{cls}</option>)}
+            </select>
+            <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseIssueDate} onChange={(e) => setDriverForm({ ...driverForm, licenseIssueDate: e.target.value })} />
+            <input type="date" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.licenseExpiryDate} onChange={(e) => setDriverForm({ ...driverForm, licenseExpiryDate: e.target.value })} />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Badge / driver code" value={driverForm.badgeCode} onChange={(e) => setDriverForm({ ...driverForm, badgeCode: e.target.value })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={driverForm.status} onChange={(e) => setDriverForm({ ...driverForm, status: e.target.value })}>
+              {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" value={driverForm.assignedVehicleId} onChange={(e) => setDriverForm({ ...driverForm, assignedVehicleId: e.target.value })}>
+              <option value="">No assigned vehicle</option>
+              {assignableVehicles.map((veh) => (
+                <option key={veh.id} value={veh.id}>{veh.registrationNumber} · {veh.status}</option>
+              ))}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white md:col-span-2" placeholder="Notes" value={driverForm.notes} onChange={(e) => setDriverForm({ ...driverForm, notes: e.target.value })} />
+            <div className="md:col-span-4 flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">
+                {selectedDriverId ? 'Save driver changes' : '+ Add Driver Record'}
+              </button>
+              {selectedDriverId && (
+                <button type="button" onClick={() => { setSelectedDriverId(''); setDriverForm({ ...driverForm, fullName: '', licenseNumber: '', badgeCode: '', assignedVehicleId: '' }); }} className="px-4 py-2 bg-slate-800 text-white rounded-xl">
+                  New driver
+                </button>
+              )}
+            </div>
+          </form>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {drivers.map((drv) => (
               <div key={drv.id} className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-blue-400 font-bold">{drv.id}</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">
-                    Score: {drv.performanceScore}/100
+                  <span className="text-blue-400 font-bold">{drv.licenseNumber}</span>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    drv.status === 'SUSPENDED' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                  }`}>
+                    {drv.status}
                   </span>
                 </div>
-
-                <h4 className="text-sm font-bold text-white">{drv.name}</h4>
-
+                <h4 className="text-sm font-bold text-white">{drv.fullName}</h4>
                 <div className="space-y-1.5 text-slate-300 text-[11px]">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">License No:</span>
-                    <span>{drv.licenseNo}</span>
+                    <span className="text-slate-400">Class:</span>
+                    <span>{drv.licenseClass}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Mining Badge No:</span>
-                    <span className="text-amber-300">{drv.badgeNo}</span>
+                    <span className="text-slate-400">Badge:</span>
+                    <span className="text-amber-300">{drv.badgeCode || '—'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Assigned Vehicle:</span>
-                    <strong className="text-white">{drv.assignedVehicleReg}</strong>
+                    <span className="text-slate-400">Phone:</span>
+                    <span>{drv.phone || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Assigned vehicle:</span>
+                    <strong className="text-white">
+                      {assignableVehicles.find((veh) => veh.id === drv.assignedVehicleId)?.registrationNumber || drv.assignedVehicleId || '—'}
+                    </strong>
                   </div>
                   <div className="flex justify-between border-t border-slate-800/80 pt-1">
-                    <span className="text-slate-400">Driver Wallet Balance:</span>
-                    <strong className="text-emerald-400">₹{drv.walletBalanceRs.toLocaleString()}</strong>
+                    <span className="text-slate-400">License expiry:</span>
+                    <span className="text-emerald-400">{drv.licenseExpiryDate || '—'}</span>
                   </div>
+                </div>
+                <div className="pt-2 flex justify-end gap-2">
+                  <button onClick={() => handleViewDriver(drv.id)} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] rounded border border-slate-800 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> View / Edit
+                  </button>
+                  <button onClick={() => handleArchiveDriver(drv.id)} className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 text-[11px] rounded border border-rose-800">
+                    Archive
+                  </button>
                 </div>
               </div>
             ))}
+            {!driversLoading && drivers.length === 0 && (
+              <p className="text-xs text-slate-500 md:col-span-3">No drivers yet. Create a driver master record.</p>
+            )}
           </div>
         </div>
       )}

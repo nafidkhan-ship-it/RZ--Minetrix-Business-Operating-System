@@ -758,6 +758,67 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listFleetDrivers(params?: { search?: string; status?: string; licenseClass?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.search) query.set('search', params.search);
+      if (params?.status) query.set('status', params.status);
+      if (params?.licenseClass) query.set('licenseClass', params.licenseClass);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/drivers${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async getFleetDriver(driverId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/drivers/${driverId}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetDriver(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/drivers', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetDriver(driverId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/drivers/${driverId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetDriver(driverId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/drivers/${driverId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();

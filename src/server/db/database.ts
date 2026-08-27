@@ -230,7 +230,11 @@ export class DatabaseStore {
       { id: 'p34', code: 'fleet:vehicle:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle master' },
       { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
       { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
-      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' }
+      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' },
+      { id: 'p38', code: 'fleet:driver:view', module: 'Fleet', action: 'view', description: 'View fleet driver master' },
+      { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
+      { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
+      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' }
     ];
     for (const permission of catalog) {
       const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
@@ -258,6 +262,7 @@ export class DatabaseStore {
     }
     if (quarryRole) {
       grant(quarryRole.id, 'fleet:vehicle:view');
+      grant(quarryRole.id, 'fleet:driver:view');
     }
   }
 
@@ -379,6 +384,10 @@ export class DatabaseStore {
       { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
       { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
       { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' },
+      { id: 'p38', code: 'fleet:driver:view', module: 'Fleet', action: 'view', description: 'View fleet driver master' },
+      { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
+      { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
+      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
       { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
@@ -519,7 +528,7 @@ export class DatabaseStore {
     const quarryPermIds = [
       'p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24',
       'p6', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30', 'p31',
-      'p4', 'p34'
+      'p4', 'p34', 'p38'
     ];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);

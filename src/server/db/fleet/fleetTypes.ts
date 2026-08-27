@@ -25,3 +25,25 @@ export interface FleetVehicleRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+export type DriverStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+export type LicenseClass = 'LMV' | 'HMV' | 'HGMV' | 'TRANS' | 'OTHER';
+
+export interface FleetDriverRecord {
+  id: string;
+  tenantId: string;
+  employeeId?: string;
+  fullName: string;
+  phone?: string;
+  licenseNumber: string;
+  licenseClass: LicenseClass;
+  licenseIssueDate?: string;
+  licenseExpiryDate?: string;
+  badgeCode?: string;
+  branchId?: string;
+  status: DriverStatus;
+  assignedVehicleId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

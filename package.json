@@ -24,6 +24,7 @@
     "test:erp-crm-orders": "tsx scripts/test-erp-crm-orders.ts",
     "test:hrms": "tsx scripts/test-hrms.ts",
     "test:fleet-vehicles": "tsx scripts/test-fleet-vehicles.ts",
+    "test:fleet-drivers": "tsx scripts/test-fleet-drivers.ts",
     "verify:stage5a-live": "bash scripts/stage5a-live-verify.sh",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },
