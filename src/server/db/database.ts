@@ -258,6 +258,19 @@ export class DatabaseStore {
       { id: 'p1', code: 'shared:admin:access', module: 'Shared Core', action: 'admin', description: 'Full Platform Admin Rights' },
       { id: 'p2', code: 'mining:quarry:create', module: 'Mining', action: 'create', description: 'Create Quarry Records' },
       { id: 'p3', code: 'mining:quarry:view', module: 'Mining', action: 'view', description: 'View Quarry Records' },
+      { id: 'p8', code: 'mining:product:view', module: 'Mining', action: 'view', description: 'View ERP products and prices' },
+      { id: 'p9', code: 'mining:product:create', module: 'Mining', action: 'create', description: 'Manage ERP products and prices' },
+      { id: 'p10', code: 'mining:production:view', module: 'Mining', action: 'view', description: 'View production batches' },
+      { id: 'p11', code: 'mining:production:create', module: 'Mining', action: 'create', description: 'Create and post production batches' },
+      { id: 'p12', code: 'mining:stock:view', module: 'Mining', action: 'view', description: 'View stock balances and ledger' },
+      { id: 'p13', code: 'mining:stock:adjust', module: 'Mining', action: 'adjust', description: 'Post stock adjustments' },
+      { id: 'p14', code: 'mining:gatepass:view', module: 'Mining', action: 'view', description: 'View gate passes' },
+      { id: 'p15', code: 'mining:gatepass:create', module: 'Mining', action: 'create', description: 'Create gate passes' },
+      { id: 'p16', code: 'mining:gatepass:approve', module: 'Mining', action: 'approve', description: 'Approve, issue, or cancel gate passes' },
+      { id: 'p17', code: 'mining:dispatch:view', module: 'Mining', action: 'view', description: 'View dispatches' },
+      { id: 'p18', code: 'mining:dispatch:create', module: 'Mining', action: 'create', description: 'Create dispatches' },
+      { id: 'p19', code: 'mining:settlement:view', module: 'Mining', action: 'view', description: 'View landowner settlements' },
+      { id: 'p20', code: 'mining:settlement:create', module: 'Mining', action: 'create', description: 'Create landowner settlements' },
       { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
@@ -387,7 +400,7 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
-    const quarryPermIds = ['p2', 'p3'];
+    const quarryPermIds = ['p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20'];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);
       if (!perm) continue;
