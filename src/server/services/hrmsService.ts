@@ -110,6 +110,36 @@ export class HrmsService {
     if (!payroll) throw new ErpServiceError('NOT_FOUND', 'Payroll run not found.', 404);
     return payroll;
   }
+
+  employeeSummaryReport(tenantId: string, filters?: Parameters<HrmsRepository['employeeSummaryReport']>[1]) {
+    this.ensurePostgres();
+    return this.repo.employeeSummaryReport(tenantId, filters);
+  }
+
+  departmentReport(tenantId: string) {
+    this.ensurePostgres();
+    return this.repo.departmentReport(tenantId);
+  }
+
+  attendanceSummaryReport(tenantId: string, filters?: Parameters<HrmsRepository['attendanceSummaryReport']>[1]) {
+    this.ensurePostgres();
+    return this.repo.attendanceSummaryReport(tenantId, filters);
+  }
+
+  leaveSummaryReport(tenantId: string, filters?: Parameters<HrmsRepository['leaveSummaryReport']>[1]) {
+    this.ensurePostgres();
+    return this.repo.leaveSummaryReport(tenantId, filters);
+  }
+
+  payrollSummaryReport(tenantId: string, filters?: Parameters<HrmsRepository['payrollSummaryReport']>[1]) {
+    this.ensurePostgres();
+    return this.repo.payrollSummaryReport(tenantId, filters);
+  }
+
+  payStructureSummaryReport(tenantId: string) {
+    this.ensurePostgres();
+    return this.repo.payStructureSummaryReport(tenantId);
+  }
 }
 
 export type { AttendanceStatus, LeaveType };

@@ -45,6 +45,7 @@ const writeLeave = [authenticateJwt, rejectClientTenantId, enforceTenantContext,
 const approveLeave = [authenticateJwt, enforceTenantContext, requirePermission('hrms:leave:approve')] as const;
 const viewPayroll = [authenticateJwt, enforceTenantContext, requirePermission('hrms:payroll:view')] as const;
 const writePayroll = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('hrms:payroll:create')] as const;
+const viewReports = [authenticateJwt, enforceTenantContext, requirePermission('hrms:report:view')] as const;
 
 hrmsRouter.get('/pay-structures', ...viewPayroll, async (req: CustomRequest, res: Response) => {
   try {
@@ -194,6 +195,65 @@ hrmsRouter.post('/payroll', ...writePayroll, validateCreatePayrollBody, async (r
 hrmsRouter.get('/payroll/:id', ...viewPayroll, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
     return res.json({ success: true, data: await hrms.getPayroll(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/employee-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+    const employmentStatus = typeof req.query.employmentStatus === 'string' ? req.query.employmentStatus : undefined;
+    return res.json({ success: true, data: await hrms.employeeSummaryReport(req.user!.tenantId, { department, employmentStatus }) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/department', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await hrms.departmentReport(req.user!.tenantId) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/attendance-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    const fromDate = typeof req.query.fromDate === 'string' ? req.query.fromDate : undefined;
+    const toDate = typeof req.query.toDate === 'string' ? req.query.toDate : undefined;
+    const employeeId = typeof req.query.employeeId === 'string' ? req.query.employeeId : undefined;
+    return res.json({ success: true, data: await hrms.attendanceSummaryReport(req.user!.tenantId, { fromDate, toDate, employeeId }) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/leave-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    const fromDate = typeof req.query.fromDate === 'string' ? req.query.fromDate : undefined;
+    const toDate = typeof req.query.toDate === 'string' ? req.query.toDate : undefined;
+    const employeeId = typeof req.query.employeeId === 'string' ? req.query.employeeId : undefined;
+    return res.json({ success: true, data: await hrms.leaveSummaryReport(req.user!.tenantId, { fromDate, toDate, employeeId }) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/payroll-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    const year = typeof req.query.year === 'string' ? Number(req.query.year) : undefined;
+    const month = typeof req.query.month === 'string' ? Number(req.query.month) : undefined;
+    const employeeId = typeof req.query.employeeId === 'string' ? req.query.employeeId : undefined;
+    return res.json({ success: true, data: await hrms.payrollSummaryReport(req.user!.tenantId, { year, month, employeeId }) });
+  } catch (error) {
+    return handleHrmsError(error, res);
+  }
+});
+
+hrmsRouter.get('/reports/pay-structure-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await hrms.payStructureSummaryReport(req.user!.tenantId) });
   } catch (error) {
     return handleHrmsError(error, res);
   }

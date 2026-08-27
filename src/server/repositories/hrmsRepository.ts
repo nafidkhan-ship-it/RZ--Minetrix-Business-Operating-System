@@ -739,4 +739,173 @@ export class HrmsRepository {
       status: String(row.status) as HrmsPayrollRecord['status']
     };
   }
+
+  async employeeSummaryReport(tenantId: string, filters?: { department?: string; employmentStatus?: string }) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const conditions = ['tenant_id = $1'];
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (filters?.department) {
+        conditions.push(`department = $${idx++}`);
+        params.push(filters.department);
+      }
+      if (filters?.employmentStatus) {
+        conditions.push(`employment_status = $${idx++}`);
+        params.push(filters.employmentStatus);
+      }
+      const result = await client.query(
+        `SELECT employment_status, COUNT(*)::int AS count FROM hrms_employees WHERE ${conditions.join(' AND ')} GROUP BY employment_status ORDER BY employment_status`,
+        params
+      );
+      const total = await client.query(
+        `SELECT COUNT(*)::int AS total FROM hrms_employees WHERE ${conditions.join(' AND ')}`,
+        params
+      );
+      return {
+        totalEmployees: Number(total.rows[0]?.total || 0),
+        byStatus: result.rows.map((row) => ({ status: String(row.employment_status), count: Number(row.count) }))
+      };
+    });
+  }
+
+  async departmentReport(tenantId: string) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT department, employment_status, COUNT(*)::int AS count
+         FROM hrms_employees WHERE tenant_id = $1
+         GROUP BY department, employment_status ORDER BY department, employment_status`,
+        [tenantId]
+      );
+      return result.rows.map((row) => ({
+        department: String(row.department),
+        status: String(row.employment_status),
+        count: Number(row.count)
+      }));
+    });
+  }
+
+  async attendanceSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string; employeeId?: string }) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const conditions = ['tenant_id = $1'];
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (filters?.fromDate) {
+        conditions.push(`work_date >= $${idx++}`);
+        params.push(filters.fromDate);
+      }
+      if (filters?.toDate) {
+        conditions.push(`work_date <= $${idx++}`);
+        params.push(filters.toDate);
+      }
+      if (filters?.employeeId) {
+        conditions.push(`employee_id = $${idx++}`);
+        params.push(filters.employeeId);
+      }
+      const result = await client.query(
+        `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(working_hours),0)::numeric AS working_hours
+         FROM hrms_attendance WHERE ${conditions.join(' AND ')}
+         GROUP BY status ORDER BY status`,
+        params
+      );
+      return {
+        byStatus: result.rows.map((row) => ({
+          status: String(row.status),
+          count: Number(row.count),
+          workingHours: Number(row.working_hours)
+        }))
+      };
+    });
+  }
+
+  async leaveSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string; employeeId?: string }) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const conditions = ['tenant_id = $1'];
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (filters?.fromDate) {
+        conditions.push(`start_date >= $${idx++}`);
+        params.push(filters.fromDate);
+      }
+      if (filters?.toDate) {
+        conditions.push(`end_date <= $${idx++}`);
+        params.push(filters.toDate);
+      }
+      if (filters?.employeeId) {
+        conditions.push(`employee_id = $${idx++}`);
+        params.push(filters.employeeId);
+      }
+      const result = await client.query(
+        `SELECT leave_type, status, COUNT(*)::int AS count
+         FROM hrms_leave_requests WHERE ${conditions.join(' AND ')}
+         GROUP BY leave_type, status ORDER BY leave_type, status`,
+        params
+      );
+      return {
+        byTypeAndStatus: result.rows.map((row) => ({
+          leaveType: String(row.leave_type),
+          status: String(row.status),
+          count: Number(row.count)
+        }))
+      };
+    });
+  }
+
+  async payrollSummaryReport(tenantId: string, filters?: { year?: number; month?: number; employeeId?: string }) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const conditions = ['tenant_id = $1', "status = 'POSTED'"];
+      const params: unknown[] = [tenantId];
+      let idx = 2;
+      if (filters?.year) {
+        conditions.push(`period_year = $${idx++}`);
+        params.push(filters.year);
+      }
+      if (filters?.month) {
+        conditions.push(`period_month = $${idx++}`);
+        params.push(filters.month);
+      }
+      if (filters?.employeeId) {
+        conditions.push(`employee_id = $${idx++}`);
+        params.push(filters.employeeId);
+      }
+      const result = await client.query(
+        `SELECT COUNT(*)::int AS payroll_count,
+                COALESCE(SUM(gross_amount),0)::numeric AS total_gross,
+                COALESCE(SUM(net_amount),0)::numeric AS total_net,
+                COALESCE(SUM(deductions),0)::numeric AS total_deductions
+         FROM hrms_payroll_runs WHERE ${conditions.join(' AND ')}`,
+        params
+      );
+      const row = result.rows[0];
+      return {
+        payrollCount: Number(row.payroll_count),
+        totalGross: Number(row.total_gross),
+        totalNet: Number(row.total_net),
+        totalDeductions: Number(row.total_deductions)
+      };
+    });
+  }
+
+  async payStructureSummaryReport(tenantId: string) {
+    return withTenantTransaction(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT ps.id, ps.code, ps.name, ps.basic_salary, ps.allowance_amount, ps.pf_percent,
+                COUNT(e.id)::int AS employee_count
+         FROM hrms_pay_structures ps
+         LEFT JOIN hrms_employees e ON e.pay_structure_id = ps.id AND e.tenant_id = ps.tenant_id AND e.employment_status = 'ACTIVE'
+         WHERE ps.tenant_id = $1 AND ps.status = 'ACTIVE'
+         GROUP BY ps.id, ps.code, ps.name, ps.basic_salary, ps.allowance_amount, ps.pf_percent
+         ORDER BY ps.code`,
+        [tenantId]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id),
+        code: String(row.code),
+        name: String(row.name),
+        basicSalary: Number(row.basic_salary),
+        allowanceAmount: Number(row.allowance_amount),
+        pfPercent: Number(row.pf_percent),
+        employeeCount: Number(row.employee_count)
+      }));
+    });
+  }
 }

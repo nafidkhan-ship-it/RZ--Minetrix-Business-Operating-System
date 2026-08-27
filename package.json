@@ -30,6 +30,8 @@
     "test:fleet-maintenance": "tsx scripts/test-fleet-maintenance.ts",
     "test:fleet-fuel": "tsx scripts/test-fleet-fuel.ts",
     "test:fleet-operations": "tsx scripts/test-fleet-operations.ts",
+    "test:finance": "tsx scripts/test-finance.ts",
+    "test:hrms-reports": "tsx scripts/test-hrms-reports.ts",
     "verify:stage5a-live": "bash scripts/stage5a-live-verify.sh",
     "verify:rls-state": "tsx scripts/verify-rls-state.ts"
   },

@@ -94,6 +94,7 @@ export class DatabaseStore {
         this.loadFromDump(parsed);
         this.ensureHrmsPermissionCatalog();
         this.ensureFleetPermissionCatalog();
+        this.ensureFinancePermissionCatalog();
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
         if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
           await syncRelationalTenantData({
@@ -177,7 +178,8 @@ export class DatabaseStore {
       { id: 'p30', code: 'hrms:leave:create', module: 'HRMS', action: 'create', description: 'Request leave' },
       { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
       { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
-      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' }
+      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' },
+      { id: 'p67', code: 'hrms:report:view', module: 'HRMS', action: 'view', description: 'View HR reports' }
     ];
 
     for (const permission of catalog) {
@@ -220,6 +222,98 @@ export class DatabaseStore {
         'hrms:leave:approve'
       ]) {
         grant(quarryRole.id, code);
+      }
+    }
+  }
+
+  private ensureFinancePermissionCatalog(): void {
+    const catalog: Permission[] = [
+      { id: 'p58', code: 'finance:transaction:view', module: 'Finance', action: 'view', description: 'View finance transactions and accounts' },
+      { id: 'p59', code: 'finance:transaction:create', module: 'Finance', action: 'create', description: 'Create finance transactions from ERP' },
+      { id: 'p60', code: 'finance:invoice:view', module: 'Finance', action: 'view', description: 'View invoices and payments' },
+      { id: 'p61', code: 'finance:invoice:create', module: 'Finance', action: 'create', description: 'Create and issue invoices' },
+      { id: 'p62', code: 'finance:payment:create', module: 'Finance', action: 'create', description: 'Record invoice payments' },
+      { id: 'p63', code: 'finance:expense:view', module: 'Finance', action: 'view', description: 'View expenses' },
+      { id: 'p64', code: 'finance:expense:create', module: 'Finance', action: 'create', description: 'Create and submit expenses' },
+      { id: 'p65', code: 'finance:expense:approve', module: 'Finance', action: 'approve', description: 'Approve or reject expenses' },
+      { id: 'p66', code: 'finance:report:view', module: 'Finance', action: 'view', description: 'View financial reports' }
+    ];
+    for (const permission of catalog) {
+      const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
+      if (!existing) this.permissions.set(permission.id, permission);
+    }
+    const adminRole = Array.from(this.roles.values()).find((role) => role.code === 'SUPER_ADMIN');
+    const apexRole = this.roles.get('role-apex-admin') || Array.from(this.roles.values()).find((role) => role.code === 'APEX_ADMIN');
+    const grant = (roleId: string, permissionCode: string) => {
+      const permission = Array.from(this.permissions.values()).find((item) => item.code === permissionCode);
+      if (!permission) return;
+      const already = Array.from(this.rolePermissions.values()).some(
+        (row) => row.roleId === roleId && (row.permissionId === permission.id || row.permissionCode === permission.code)
+      );
+      if (already) return;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId,
+        permissionId: permission.id,
+        permissionCode: permission.code
+      });
+    };
+    if (adminRole) {
+      for (const permission of catalog) grant(adminRole.id, permission.code);
+    }
+    if (apexRole) {
+      grant(apexRole.id, 'finance:transaction:view');
+      grant(apexRole.id, 'finance:invoice:view');
+    }
+    const apexUser = this.users.get('usr-apex-mgr-003');
+    if (apexRole && apexUser) {
+      const hasRole = Array.from(this.userRoles.values()).some((ur) => ur.userId === apexUser.id && ur.roleId === apexRole.id);
+      if (!hasRole) {
+        this.userRoles.set('ur-3', {
+          id: 'ur-3',
+          userId: apexUser.id,
+          roleId: apexRole.id,
+          tenantId: apexUser.tenantId,
+          assignedAt: new Date().toISOString(),
+          assignedBy: 'SYSTEM'
+        });
+      }
+    }
+    if (!apexRole) {
+      const tenant2 = Array.from(this.tenants.values()).find((t) => t.code === 'APEX-MINING');
+      if (tenant2) {
+        const roleId = 'role-apex-admin';
+        if (!this.roles.has(roleId)) {
+          const now = new Date().toISOString();
+          this.roles.set(roleId, {
+            id: roleId,
+            tenantId: tenant2.id,
+            code: 'APEX_ADMIN',
+            name: 'Apex Site Administrator',
+            description: 'Apex tenant administrator with finance read access',
+            isSystemRole: false,
+            createdAt: now,
+            updatedAt: now,
+            version: 1
+          });
+        }
+        grant(roleId, 'finance:transaction:view');
+        grant(roleId, 'finance:invoice:view');
+        const apexUser = this.users.get('usr-apex-mgr-003');
+        if (apexUser) {
+          const hasRole = Array.from(this.userRoles.values()).some((ur) => ur.userId === apexUser.id && ur.roleId === roleId);
+          if (!hasRole) {
+            this.userRoles.set('ur-3', {
+              id: 'ur-3',
+              userId: apexUser.id,
+              roleId,
+              tenantId: apexUser.tenantId,
+              assignedAt: new Date().toISOString(),
+              assignedBy: 'SYSTEM'
+            });
+          }
+        }
       }
     }
   }
@@ -425,6 +519,15 @@ export class DatabaseStore {
       { id: 'p56', code: 'fleet:operation:update', module: 'Fleet', action: 'update', description: 'Update fleet operations' },
       { id: 'p57', code: 'fleet:operation:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet operations' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
+      { id: 'p58', code: 'finance:transaction:view', module: 'Finance', action: 'view', description: 'View finance transactions and accounts' },
+      { id: 'p59', code: 'finance:transaction:create', module: 'Finance', action: 'create', description: 'Create finance transactions from ERP' },
+      { id: 'p60', code: 'finance:invoice:view', module: 'Finance', action: 'view', description: 'View invoices and payments' },
+      { id: 'p61', code: 'finance:invoice:create', module: 'Finance', action: 'create', description: 'Create and issue invoices' },
+      { id: 'p62', code: 'finance:payment:create', module: 'Finance', action: 'create', description: 'Record invoice payments' },
+      { id: 'p63', code: 'finance:expense:view', module: 'Finance', action: 'view', description: 'View expenses' },
+      { id: 'p64', code: 'finance:expense:create', module: 'Finance', action: 'create', description: 'Create and submit expenses' },
+      { id: 'p65', code: 'finance:expense:approve', module: 'Finance', action: 'approve', description: 'Approve or reject expenses' },
+      { id: 'p66', code: 'finance:report:view', module: 'Finance', action: 'view', description: 'View financial reports' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
       { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
       { id: 'p26', code: 'hrms:employee:update', module: 'HRMS', action: 'update', description: 'Update or archive employees' },
@@ -435,6 +538,7 @@ export class DatabaseStore {
       { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
       { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
       { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' },
+      { id: 'p67', code: 'hrms:report:view', module: 'HRMS', action: 'view', description: 'View HR reports' },
       { id: 'p7', code: 'chat:message:send', module: 'RZ Chat', action: 'send', description: 'Send Realtime Chat Messages' }
     ];
     permList.forEach(p => this.permissions.set(p.id, p));
@@ -464,6 +568,32 @@ export class DatabaseStore {
     };
     this.roles.set(roleAdmin.id, roleAdmin);
     this.roles.set(roleQuarryMgr.id, roleQuarryMgr);
+
+    const roleApexAdmin: Role = {
+      id: 'role-apex-admin',
+      tenantId: tenant2.id,
+      code: 'APEX_ADMIN',
+      name: 'Apex Site Administrator',
+      description: 'Apex tenant administrator with finance read access for isolation tests',
+      isSystemRole: false,
+      createdAt: now,
+      updatedAt: now,
+      version: 1
+    };
+    this.roles.set(roleApexAdmin.id, roleApexAdmin);
+
+    const apexFinancePermIds = ['p58', 'p60'];
+    for (const permId of apexFinancePermIds) {
+      const perm = permList.find((item) => item.id === permId);
+      if (!perm) continue;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId: roleApexAdmin.id,
+        permissionId: perm.id,
+        permissionCode: perm.code
+      });
+    }
 
     // Link Role Permissions
     permList.forEach(p => {
@@ -559,6 +689,14 @@ export class DatabaseStore {
       tenantId: tenant1.id,
       assignedAt: now,
       assignedBy: userAdmin.id
+    });
+    this.userRoles.set('ur-3', {
+      id: 'ur-3',
+      userId: userApex.id,
+      roleId: roleApexAdmin.id,
+      tenantId: tenant2.id,
+      assignedAt: now,
+      assignedBy: 'SYSTEM'
     });
 
     const quarryPermIds = [

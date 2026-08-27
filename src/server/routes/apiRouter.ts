@@ -33,6 +33,7 @@ import { erpQuarryRouter } from './erpQuarryRouter.js';
 import { erpOperationsRouter } from './erpOperationsRouter.js';
 import { hrmsRouter } from './hrmsRouter.js';
 import { fleetRouter } from './fleetRouter.js';
+import { financeRouter } from './financeRouter.js';
 
 export const apiRouter = Router();
 
@@ -55,6 +56,7 @@ apiRouter.use('/erp', erpQuarryRouter);
 apiRouter.use('/erp', erpOperationsRouter);
 apiRouter.use('/hrms', hrmsRouter);
 apiRouter.use('/fleet', fleetRouter);
+apiRouter.use('/finance', financeRouter);
 
 // Rate Limiters
 const authRateLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 15, keyPrefix: 'auth_login' });
