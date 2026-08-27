@@ -93,6 +93,7 @@ export class DatabaseStore {
       if (hasData) {
         this.loadFromDump(parsed);
         this.ensureHrmsPermissionCatalog();
+        this.ensureFleetPermissionCatalog();
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
         if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
           await syncRelationalTenantData({
@@ -223,6 +224,43 @@ export class DatabaseStore {
     }
   }
 
+  private ensureFleetPermissionCatalog(): void {
+    const catalog: Permission[] = [
+      { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
+      { id: 'p34', code: 'fleet:vehicle:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle master' },
+      { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
+      { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
+      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' }
+    ];
+    for (const permission of catalog) {
+      const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
+      if (!existing) this.permissions.set(permission.id, permission);
+    }
+    const adminRole = Array.from(this.roles.values()).find((role) => role.code === 'SUPER_ADMIN');
+    const quarryRole = Array.from(this.roles.values()).find((role) => role.code === 'QUARRY_MANAGER');
+    const grant = (roleId: string, permissionCode: string) => {
+      const permission = Array.from(this.permissions.values()).find((item) => item.code === permissionCode);
+      if (!permission) return;
+      const already = Array.from(this.rolePermissions.values()).some(
+        (row) => row.roleId === roleId && (row.permissionId === permission.id || row.permissionCode === permission.code)
+      );
+      if (already) return;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId,
+        permissionId: permission.id,
+        permissionCode: permission.code
+      });
+    };
+    if (adminRole) {
+      for (const permission of catalog) grant(adminRole.id, permission.code);
+    }
+    if (quarryRole) {
+      grant(quarryRole.id, 'fleet:vehicle:view');
+    }
+  }
+
   private seedDefaultEnterpriseData() {
     const now = new Date().toISOString();
 
@@ -337,6 +375,10 @@ export class DatabaseStore {
       { id: 'p23', code: 'mining:order:view', module: 'Mining', action: 'view', description: 'View sales orders' },
       { id: 'p24', code: 'mining:order:create', module: 'Mining', action: 'create', description: 'Create and confirm sales orders' },
       { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
+      { id: 'p34', code: 'fleet:vehicle:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle master' },
+      { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
+      { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
+      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
       { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
@@ -476,7 +518,8 @@ export class DatabaseStore {
 
     const quarryPermIds = [
       'p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24',
-      'p6', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30', 'p31'
+      'p6', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30', 'p31',
+      'p4', 'p34'
     ];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);

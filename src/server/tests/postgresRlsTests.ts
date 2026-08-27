@@ -282,6 +282,36 @@ export async function runPostgresRlsIntegrationTests(): Promise<{
     record('HRMS employees RLS hides rows from other tenant', false, error.message);
   }
 
+  try {
+    const vehicleId = `veh-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO fleet_vehicles (
+          id, tenant_id, registration_number, vehicle_type, make, model, manufacturing_year,
+          fuel_type, ownership_type, capacity
+        ) VALUES ($1,$2,$3,'TIPPER','Tata','Signa',2022,'DIESEL','COMPANY',20)`,
+        [vehicleId, TENANT_A, `KA-RLS-${Date.now().toString().slice(-6)}`]
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_vehicles WHERE id = $1`, [vehicleId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_vehicles WHERE id = $1`, [vehicleId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'Fleet vehicles RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('Fleet vehicles RLS hides rows from other tenant', false, error.message);
+  }
+
   // Cleanup test rows
   try {
     await deleteCompanyCrossTenantAttempt(TENANT_A, COMPANY_A);
