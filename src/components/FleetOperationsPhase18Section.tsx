@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Fuel, MapPin, Wrench, ShieldCheck, DollarSign,
   UserCheck, Activity, Award, BarChart3, Clock, AlertTriangle,
@@ -21,6 +21,7 @@ import {
   TripLogRecord,
   DriverRecord
 } from '../data/fleetOperationsPhase18Data';
+import { apiClient } from '../services/apiClient';
 
 export const FleetOperationsPhase18Section: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
@@ -42,10 +43,32 @@ export const FleetOperationsPhase18Section: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // States
-  const [vehicles, setVehicles] = useState<VehicleMasterRecord[]>(VEHICLE_MASTER_LIST);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers] = useState<DriverRecord[]>(DRIVER_DIRECTORY);
   const [trips, setTrips] = useState<TripLogRecord[]>(MOCK_TRIP_LOGS);
   const [searchVehicle, setSearchVehicle] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [vehiclesError, setVehiclesError] = useState<string | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [vehicleForm, setVehicleForm] = useState({
+    registrationNumber: '',
+    vehicleType: 'TIPPER',
+    make: 'Tata',
+    model: 'Signa',
+    variant: '',
+    manufacturingYear: 2022,
+    fuelType: 'DIESEL',
+    ownershipType: 'COMPANY',
+    ownerReference: '',
+    capacity: 28,
+    capacityUnit: 'TON',
+    status: 'ACTIVE',
+    insuranceReference: '',
+    fitnessReference: '',
+    permitReference: ''
+  });
 
   // New Trip Creation Form State
   const [newTripForm, setNewTripForm] = useState({
@@ -61,6 +84,116 @@ export const FleetOperationsPhase18Section: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const loadLiveVehicles = useCallback(async () => {
+    if (!apiClient.getAuthToken()) {
+      setVehicles([]);
+      setVehiclesError('Login via Shared Core to load live vehicles.');
+      return;
+    }
+    setVehiclesLoading(true);
+    setVehiclesError(null);
+    const res = await apiClient.listFleetVehicles({
+      search: searchVehicle || undefined,
+      status: statusFilter || undefined,
+      vehicleType: typeFilter || undefined
+    });
+    if (res.success && Array.isArray(res.data)) {
+      setVehicles(res.data);
+    } else {
+      setVehicles([]);
+      setVehiclesError(res.message || 'Unable to load vehicles');
+    }
+    setVehiclesLoading(false);
+  }, [searchVehicle, statusFilter, typeFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'vehicle-master') {
+      loadLiveVehicles();
+    }
+  }, [activeTab, loadLiveVehicles]);
+
+  const handleCreateVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create vehicles');
+      return;
+    }
+    const res = await apiClient.createFleetVehicle({
+      ...vehicleForm,
+      registrationNumber: vehicleForm.registrationNumber.trim().toUpperCase(),
+      manufacturingYear: Number(vehicleForm.manufacturingYear),
+      capacity: Number(vehicleForm.capacity)
+    });
+    if (res.success) {
+      showToast(`Vehicle ${res.data.registrationNumber} created`);
+      setVehicleForm({ ...vehicleForm, registrationNumber: '' });
+      await loadLiveVehicles();
+    } else {
+      showToast(res.message || 'Failed to create vehicle');
+    }
+  };
+
+  const handleEditVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVehicleId) {
+      showToast('Select a vehicle to edit');
+      return;
+    }
+    const res = await apiClient.updateFleetVehicle(selectedVehicleId, {
+      make: vehicleForm.make,
+      model: vehicleForm.model,
+      variant: vehicleForm.variant || undefined,
+      manufacturingYear: Number(vehicleForm.manufacturingYear),
+      capacity: Number(vehicleForm.capacity),
+      status: vehicleForm.status,
+      ownerReference: vehicleForm.ownerReference || undefined,
+      insuranceReference: vehicleForm.insuranceReference || undefined,
+      fitnessReference: vehicleForm.fitnessReference || undefined,
+      permitReference: vehicleForm.permitReference || undefined
+    });
+    if (res.success) {
+      showToast(`Vehicle ${res.data.registrationNumber} updated`);
+      await loadLiveVehicles();
+    } else {
+      showToast(res.message || 'Failed to update vehicle');
+    }
+  };
+
+  const handleArchiveVehicle = async (vehicleId: string) => {
+    const res = await apiClient.archiveFleetVehicle(vehicleId);
+    showToast(res.success ? 'Vehicle archived' : res.message || 'Archive failed');
+    if (selectedVehicleId === vehicleId) setSelectedVehicleId('');
+    await loadLiveVehicles();
+  };
+
+  const handleViewVehicle = async (vehicleId: string) => {
+    const res = await apiClient.getFleetVehicle(vehicleId);
+    if (!res.success || !res.data) {
+      showToast(res.message || 'Vehicle not found');
+      return;
+    }
+    const row = res.data;
+    setSelectedVehicleId(row.id);
+    setVehicleForm({
+      registrationNumber: row.registrationNumber,
+      vehicleType: row.vehicleType,
+      make: row.make,
+      model: row.model,
+      variant: row.variant || '',
+      manufacturingYear: row.manufacturingYear,
+      fuelType: row.fuelType,
+      ownershipType: row.ownershipType,
+      ownerReference: row.ownerReference || '',
+      capacity: row.capacity,
+      capacityUnit: row.capacityUnit,
+      status: row.status,
+      insuranceReference: row.insuranceReference || '',
+      fitnessReference: row.fitnessReference || '',
+      permitReference: row.permitReference || ''
+    });
+    showToast(`Loaded ${row.registrationNumber}`);
   };
 
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -85,11 +218,7 @@ export const FleetOperationsPhase18Section: React.FC = () => {
     showToast(`Trip ${createdTrip.tripId} dispatched! OTP sent to recipient & GPS live tracking active.`);
   };
 
-  const filteredVehicles = vehicles.filter(v =>
-    v.registrationNo.toLowerCase().includes(searchVehicle.toLowerCase()) ||
-    v.makeModel.toLowerCase().includes(searchVehicle.toLowerCase()) ||
-    v.assignedDriver.toLowerCase().includes(searchVehicle.toLowerCase())
-  );
+  const filteredVehicles = vehicles;
 
   return (
     <div className="space-y-8">
@@ -342,78 +471,136 @@ export const FleetOperationsPhase18Section: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 2</span>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Module 2 · Live PostgreSQL</span>
               <h2 className="text-xl font-bold text-white mt-1">Vehicle Master Directory &amp; Compliance Vault</h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search registration or driver..."
+                  placeholder="Search registration or make..."
                   value={searchVehicle}
                   onChange={(e) => setSearchVehicle(e.target.value)}
                   className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
-
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All statuses</option>
+                {['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RETIRED'].map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white">
+                <option value="">All types</option>
+                {['TIPPER', 'TRAILER', 'TANKER', 'PICKUP', 'LOWBED', 'OTHER'].map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
               <button
-                onClick={() => showToast('Opened New Commercial Vehicle Registration Modal')}
-                className="px-4 py-2 bg-blue-500 text-slate-950 font-bold text-xs rounded-xl shadow-md"
+                onClick={() => loadLiveVehicles()}
+                className="px-3 py-2 bg-slate-950 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl"
               >
-                + Add Vehicle Record
+                Refresh
               </button>
             </div>
           </div>
+
+          {vehiclesError && (
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs">{vehiclesError}</div>
+          )}
+          {vehiclesLoading && <p className="text-xs text-slate-400">Loading vehicles…</p>}
+
+          <form onSubmit={selectedVehicleId ? handleEditVehicle : handleCreateVehicle} className="grid md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs">
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="KA-19-AB-4491" value={vehicleForm.registrationNumber} onChange={(e) => setVehicleForm({ ...vehicleForm, registrationNumber: e.target.value })} required={!selectedVehicleId} disabled={Boolean(selectedVehicleId)} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.vehicleType} onChange={(e) => setVehicleForm({ ...vehicleForm, vehicleType: e.target.value })}>
+              {['TIPPER', 'TRAILER', 'TANKER', 'PICKUP', 'LOWBED', 'OTHER'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Make" value={vehicleForm.make} onChange={(e) => setVehicleForm({ ...vehicleForm, make: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Model" value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} required />
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Variant" value={vehicleForm.variant} onChange={(e) => setVehicleForm({ ...vehicleForm, variant: e.target.value })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Year" value={vehicleForm.manufacturingYear} onChange={(e) => setVehicleForm({ ...vehicleForm, manufacturingYear: Number(e.target.value) })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.fuelType} onChange={(e) => setVehicleForm({ ...vehicleForm, fuelType: e.target.value })}>
+              {['DIESEL', 'PETROL', 'CNG', 'ELECTRIC', 'HYBRID'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.ownershipType} onChange={(e) => setVehicleForm({ ...vehicleForm, ownershipType: e.target.value })}>
+              {['COMPANY', 'ATTACHED', 'CONTRACTOR', 'LEASED'].map((type) => <option key={type}>{type}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Owner / vendor" value={vehicleForm.ownerReference} onChange={(e) => setVehicleForm({ ...vehicleForm, ownerReference: e.target.value })} />
+            <input type="number" className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Capacity" value={vehicleForm.capacity} onChange={(e) => setVehicleForm({ ...vehicleForm, capacity: Number(e.target.value) })} />
+            <select className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" value={vehicleForm.status} onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value })}>
+              {['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RETIRED'].map((status) => <option key={status}>{status}</option>)}
+            </select>
+            <input className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white" placeholder="Insurance ref" value={vehicleForm.insuranceReference} onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceReference: e.target.value })} />
+            <div className="md:col-span-4 flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">
+                {selectedVehicleId ? 'Save vehicle changes' : '+ Add Vehicle Record'}
+              </button>
+              {selectedVehicleId && (
+                <button type="button" onClick={() => { setSelectedVehicleId(''); setVehicleForm({ ...vehicleForm, registrationNumber: '' }); }} className="px-4 py-2 bg-slate-800 text-white rounded-xl">
+                  New vehicle
+                </button>
+              )}
+            </div>
+          </form>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredVehicles.map((veh) => (
               <div key={veh.id} className="p-5 bg-slate-950 border border-slate-800 hover:border-blue-500/50 rounded-2xl space-y-3 font-mono text-xs transition-all">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <span className="text-blue-400 font-bold text-sm">{veh.registrationNo}</span>
+                  <span className="text-blue-400 font-bold text-sm">{veh.registrationNumber}</span>
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                    veh.currentStatus === 'DISPATCHED_IN_TRIP' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                    veh.status === 'MAINTENANCE' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                   }`}>
-                    {veh.currentStatus}
+                    {veh.status}
                   </span>
                 </div>
 
-                <h4 className="text-sm font-bold text-white">{veh.makeModel}</h4>
+                <h4 className="text-sm font-bold text-white">{veh.make} {veh.model} {veh.variant || ''}</h4>
 
                 <div className="space-y-1.5 text-slate-300 text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Payload Capacity:</span>
-                    <strong className="text-amber-300">{veh.capacityTons} Tons</strong>
+                    <strong className="text-amber-300">{veh.capacity} {veh.capacityUnit}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Ownership:</span>
-                    <span>{veh.ownerType}</span>
+                    <span>{veh.ownershipType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Assigned Driver:</span>
-                    <strong className="text-white">{veh.assignedDriver}</strong>
+                    <span className="text-slate-400">Owner / vendor:</span>
+                    <strong className="text-white">{veh.ownerReference || '—'}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">GPS Device ID:</span>
-                    <span className="text-purple-300">{veh.gpsDeviceId}</span>
+                    <span className="text-slate-400">Year / fuel:</span>
+                    <span className="text-purple-300">{veh.manufacturingYear} · {veh.fuelType}</span>
                   </div>
                   <div className="flex justify-between border-t border-slate-800/80 pt-1">
                     <span className="text-slate-400">Fitness / Insurance:</span>
-                    <span className="text-emerald-400">Valid till {veh.fitnessExpiryDate}</span>
+                    <span className="text-emerald-400">{veh.fitnessReference || veh.insuranceReference || 'Not set'}</span>
                   </div>
                 </div>
 
                 <div className="pt-2 flex justify-end gap-2">
                   <button
-                    onClick={() => showToast(`Opened digital RC & Compliance Vault for ${veh.registrationNo}`)}
+                    onClick={() => handleViewVehicle(veh.id)}
                     className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] rounded border border-slate-800 flex items-center gap-1"
                   >
-                    <FileText className="w-3.5 h-3.5" /> View Digital Vault
+                    <FileText className="w-3.5 h-3.5" /> View / Edit
+                  </button>
+                  <button
+                    onClick={() => handleArchiveVehicle(veh.id)}
+                    className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-200 text-[11px] rounded border border-rose-800"
+                  >
+                    Archive
                   </button>
                 </div>
               </div>
             ))}
+            {!vehiclesLoading && filteredVehicles.length === 0 && (
+              <p className="text-xs text-slate-500 md:col-span-3">No live vehicles. Login via Shared Core, then create a record.</p>
+            )}
           </div>
         </div>
       )}

@@ -697,6 +697,67 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listFleetVehicles(params?: { search?: string; status?: string; vehicleType?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.search) query.set('search', params.search);
+      if (params?.status) query.set('status', params.status);
+      if (params?.vehicleType) query.set('vehicleType', params.vehicleType);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/vehicles${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async getFleetVehicle(vehicleId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/vehicles/${vehicleId}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetVehicle(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/vehicles', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetVehicle(vehicleId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/vehicles/${vehicleId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetVehicle(vehicleId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/vehicles/${vehicleId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();
