@@ -384,6 +384,56 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async createSettlementRate(payload: {
+    landParcelId: string;
+    quarryId?: string;
+    ratePerUom: number;
+    quantityUom?: string;
+    effectiveFrom: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/settlement-rates', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createSettlement(payload: {
+    settlementNumber: string;
+    landParcelId: string;
+    quarryId: string;
+    basis: 'PRODUCTION' | 'DISPATCH';
+    productionBatchId?: string;
+    dispatchId?: string;
+    deductions?: number;
+    statementRef?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/settlements', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listSettlements(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/settlements', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();

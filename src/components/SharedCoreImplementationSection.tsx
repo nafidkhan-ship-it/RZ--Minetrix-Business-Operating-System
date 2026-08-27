@@ -53,6 +53,7 @@ export const SharedCoreImplementationSection: React.FC = () => {
   const [testSuiteReport, setTestSuiteReport] = useState<any>(null);
   const [liveLoginResult, setLiveLoginResult] = useState<any>(null);
   const [tenantIsolationResult, setTenantIsolationResult] = useState<any>(null);
+  const [auditTrailResult, setAuditTrailResult] = useState<any>(null);
   const [isRunningTests, setIsRunningTests] = useState<boolean>(false);
   const [loginEmail, setLoginEmail] = useState<string>('admin@racezoneventures.com');
   const [loginPassword, setLoginPassword] = useState<string>('AdminPass2026!');
@@ -539,6 +540,16 @@ export const SharedCoreImplementationSection: React.FC = () => {
                 Simulate Cross-Tenant Access Attack
               </button>
 
+              <button
+                onClick={async () => {
+                  const res = await apiClient.getAuditLogs();
+                  setAuditTrailResult(res);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition cursor-pointer"
+              >
+                Load Live Audit Trail
+              </button>
+
               {tenantIsolationResult && (
                 <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
                   <div className="flex items-center justify-between text-[11px]">
@@ -550,6 +561,25 @@ export const SharedCoreImplementationSection: React.FC = () => {
                   <div className="text-slate-300 text-[11px]">
                     {tenantIsolationResult.message || 'Tenant Boundary Successfully Enforced.'}
                   </div>
+                </div>
+              )}
+
+              {auditTrailResult && (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Audit trail:</span>
+                    <span className={`font-bold ${auditTrailResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {auditTrailResult.success
+                        ? `${Array.isArray(auditTrailResult.data) ? auditTrailResult.data.length : 0} rows`
+                        : auditTrailResult.message || 'FAILED'}
+                    </span>
+                  </div>
+                  {Array.isArray(auditTrailResult.data) && auditTrailResult.data.slice(0, 6).map((row: { action?: string; resource?: string; createdAt?: string }, idx: number) => (
+                    <div key={`${row.createdAt || idx}-${idx}`} className="text-[11px] text-slate-300 flex justify-between gap-2">
+                      <span>{row.action}</span>
+                      <span className="text-slate-500">{row.resource}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
