@@ -91,6 +91,27 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     mineralType: 'HARD_ROCK',
     capacityTons: 1000
   });
+  const [erpProducts, setErpProducts] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [productionBatches, setProductionBatches] = useState<Array<{ id: string; batchNumber: string; status: string; totalQuantity: number }>>([]);
+  const [stockBalances, setStockBalances] = useState<Array<{ id: string; productId: string; quantity: number; quantityUom: string }>>([]);
+  const [landParcels, setLandParcels] = useState<Array<{ id: string; surveyNumber: string; ownerName: string; acreage?: number; villageTaluk?: string }>>([]);
+  const [gatePasses, setGatePasses] = useState<Array<{ id: string; gatePassNumber: string; status: string }>>([]);
+  const [productForm, setProductForm] = useState({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
+  const [productionForm, setProductionForm] = useState({
+    quarryId: '',
+    productId: '',
+    quantity: 10,
+    shiftName: 'A'
+  });
+  const [dispatchForm, setDispatchForm] = useState({
+    quarryId: '',
+    productId: '',
+    customerCode: '',
+    customerName: '',
+    vehicleNumber: '',
+    driverName: '',
+    quantity: 5
+  });
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -112,11 +133,28 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     setQuarriesLoading(false);
   }, []);
 
+  const loadErpOperations = useCallback(async () => {
+    if (!apiClient.getAuthToken()) return;
+    const [products, batches, stock, parcels, passes] = await Promise.all([
+      apiClient.listProducts(),
+      apiClient.listProductionBatches(),
+      apiClient.listStockBalances(),
+      apiClient.listLandParcels(),
+      apiClient.listGatePasses()
+    ]);
+    if (products.success && Array.isArray(products.data)) setErpProducts(products.data);
+    if (batches.success && Array.isArray(batches.data)) setProductionBatches(batches.data);
+    if (stock.success && Array.isArray(stock.data)) setStockBalances(stock.data);
+    if (parcels.success && Array.isArray(parcels.data)) setLandParcels(parcels.data);
+    if (passes.success && Array.isArray(passes.data)) setGatePasses(passes.data);
+  }, []);
+
   useEffect(() => {
-    if (activeTab === 'land-management') {
+    if (activeTab === 'land-management' || activeTab === 'production-stock' || activeTab === 'pricing-dispatch' || activeTab === 'building-materials') {
       loadQuarries();
+      loadErpOperations();
     }
-  }, [activeTab, loadQuarries]);
+  }, [activeTab, loadQuarries, loadErpOperations]);
 
   const handleCreateQuarry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +179,112 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       await loadQuarries();
     } else {
       showToast(res.message || 'Failed to create quarry');
+    }
+  };
+
+  const handleCreateProductionBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to post production');
+      return;
+    }
+    if (!productionForm.quarryId || !productionForm.productId) {
+      showToast('Select quarry and product');
+      return;
+    }
+    const res = await apiClient.createProductionBatch({
+      quarryId: productionForm.quarryId,
+      batchNumber: `BAT-${Date.now().toString().slice(-8)}`,
+      productionDate: new Date().toISOString().slice(0, 10),
+      shiftName: productionForm.shiftName,
+      postImmediately: true,
+      lines: [{ productId: productionForm.productId, quantity: Number(productionForm.quantity), quantityUom: 'TON' }]
+    });
+    if (res.success) {
+      showToast(`Production posted [${res.data.batchNumber}] — stock increased`);
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to post production');
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to create products');
+      return;
+    }
+    if (!productForm.code.trim() || !productForm.name.trim()) {
+      showToast('Product code and name are required');
+      return;
+    }
+    const res = await apiClient.createProduct({
+      code: productForm.code.trim().toUpperCase(),
+      name: productForm.name.trim(),
+      category: productForm.category,
+      defaultUom: 'TON',
+      gstPercent: 5
+    });
+    if (res.success) {
+      showToast(`Product [${productForm.code.toUpperCase()}] created`);
+      setProductForm({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
+      await loadErpOperations();
+    } else {
+      showToast(res.message || 'Failed to create product');
+    }
+  };
+
+  const handleCreateLiveDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiClient.getAuthToken()) {
+      showToast('Login via Shared Core to issue gate pass / dispatch');
+      return;
+    }
+    if (!dispatchForm.quarryId || !dispatchForm.productId || !dispatchForm.customerName || !dispatchForm.vehicleNumber || !dispatchForm.driverName) {
+      showToast('Complete quarry, product, customer, vehicle and driver');
+      return;
+    }
+    const customer = await apiClient.createCustomer({
+      code: dispatchForm.customerCode.trim().toUpperCase() || `CUST-${Date.now().toString().slice(-6)}`,
+      name: dispatchForm.customerName.trim(),
+      destination: 'Site delivery'
+    });
+    if (!customer.success) {
+      showToast(customer.message || 'Failed to create customer');
+      return;
+    }
+    const gatePass = await apiClient.createGatePass({
+      gatePassNumber: `GP-${Date.now().toString().slice(-8)}`,
+      quarryId: dispatchForm.quarryId,
+      customerId: customer.data.id,
+      vehicleNumber: dispatchForm.vehicleNumber,
+      driverName: dispatchForm.driverName,
+      destination: 'Site delivery',
+      lines: [{ productId: dispatchForm.productId, quantity: Number(dispatchForm.quantity), quantityUom: 'TON' }]
+    });
+    if (!gatePass.success) {
+      showToast(gatePass.message || 'Failed to create gate pass');
+      return;
+    }
+    const approved = await apiClient.transitionGatePass(gatePass.data.id, 'approve');
+    if (!approved.success) {
+      showToast(approved.message || 'Failed to approve gate pass');
+      return;
+    }
+    const issued = await apiClient.transitionGatePass(gatePass.data.id, 'issue');
+    if (!issued.success) {
+      showToast(issued.message || 'Failed to issue gate pass');
+      return;
+    }
+    const dispatch = await apiClient.createDispatch({
+      dispatchNumber: `DSP-${Date.now().toString().slice(-8)}`,
+      gatePassId: gatePass.data.id
+    });
+    if (dispatch.success) {
+      showToast(`Dispatch ${dispatch.data.dispatchNumber} posted — stock decreased`);
+      await loadErpOperations();
+    } else {
+      showToast(dispatch.message || 'Failed to create dispatch');
     }
   };
 
@@ -495,6 +639,19 @@ export const MiningOperationsPhase17Section: React.FC = () => {
             </div>
 
             <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {landParcels.length > 0 && landParcels.map((parcel) => (
+              <div key={parcel.id} className="p-5 bg-slate-950 border border-amber-500/30 rounded-xl space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <span className="text-amber-400 font-bold">{parcel.surveyNumber}</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">LIVE API</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">{parcel.ownerName}</h4>
+                <div className="space-y-1 text-slate-300">
+                  <div className="flex justify-between"><span className="text-slate-400">Village / Taluk:</span><span>{parcel.villageTaluk || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Lease Area:</span><span className="text-amber-300 font-bold">{parcel.acreage ?? '—'} Acres</span></div>
+                </div>
+              </div>
+            ))}
             {MOCK_LAND_OWNERS.map((lo) => (
               <div key={lo.id} className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
@@ -581,6 +738,13 @@ export const MiningOperationsPhase17Section: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {erpProducts.map((product) => (
+              <div key={product.id} className="p-4 bg-slate-950 border border-amber-500/40 rounded-xl space-y-3">
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">LIVE API</span>
+                <div className="text-amber-300 font-mono text-[10px]">{product.code}</div>
+                <h4 className="text-sm font-bold text-white">{product.name}</h4>
+              </div>
+            ))}
             {filteredMaterials.map((mat) => (
               <div key={mat.id} className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl space-y-3 transition-all">
                 <div className="flex items-center justify-between">
@@ -624,6 +788,77 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       {/* TAB 4: PRODUCTION & STOCK YARD */}
       {activeTab === 'production-stock' && (
         <div className="space-y-6">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-2xl p-6 space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3">Live Production Posting (PostgreSQL + Stock Ledger)</h3>
+            {!apiClient.getAuthToken() && (
+              <p className="text-xs text-slate-400">Login via Phase 16 Shared Core to post production and update stock.</p>
+            )}
+            <form onSubmit={handleCreateProduct} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <input placeholder="Product code" value={productForm.code} onChange={(e) => setProductForm({ ...productForm, code: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Product name" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <button type="submit" className="py-2 bg-slate-800 text-amber-300 font-bold rounded-xl">Create Product Master</button>
+            </form>
+            <form onSubmit={handleCreateProductionBatch} className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+              <select
+                value={productionForm.quarryId}
+                onChange={(e) => setProductionForm({ ...productionForm, quarryId: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              >
+                <option value="">Select quarry</option>
+                {quarries.map((quarry) => (
+                  <option key={quarry.id} value={quarry.id}>{quarry.code} · {quarry.name}</option>
+                ))}
+              </select>
+              <select
+                value={productionForm.productId}
+                onChange={(e) => setProductionForm({ ...productionForm, productId: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              >
+                <option value="">Select product</option>
+                {erpProducts.map((product) => (
+                  <option key={product.id} value={product.id}>{product.code} · {product.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={0.001}
+                step="0.001"
+                value={productionForm.quantity}
+                onChange={(e) => setProductionForm({ ...productionForm, quantity: Number(e.target.value) })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono"
+              />
+              <input
+                type="text"
+                value={productionForm.shiftName}
+                onChange={(e) => setProductionForm({ ...productionForm, shiftName: e.target.value })}
+                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              />
+              <button type="submit" className="py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Post Production</button>
+            </form>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+              <div>
+                <h4 className="text-amber-300 font-bold mb-2">Posted batches</h4>
+                {productionBatches.length === 0 && <p className="text-slate-500">No live batches yet.</p>}
+                {productionBatches.slice(0, 6).map((batch) => (
+                  <div key={batch.id} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-white">{batch.batchNumber}</span>
+                    <span className="text-emerald-400">{batch.status} · {batch.totalQuantity}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="text-emerald-300 font-bold mb-2">Stock balances</h4>
+                {stockBalances.length === 0 && <p className="text-slate-500">No live stock yet.</p>}
+                {stockBalances.slice(0, 6).map((row) => (
+                  <div key={row.id} className="flex justify-between border-b border-slate-800 py-1">
+                    <span className="text-slate-300">{row.productId.slice(0, 8)}…</span>
+                    <span className="text-white font-bold">{row.quantity} {row.quantityUom}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Cutting Register Entry Form */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
@@ -886,6 +1121,30 @@ export const MiningOperationsPhase17Section: React.FC = () => {
           <div className="border-b border-slate-800 pb-4">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Modules 6, 7 &amp; 8</span>
             <h2 className="text-xl font-bold text-white mt-1">Smart Dynamic Pricing, Automated Gate Pass &amp; Weighbridge Telemetry</h2>
+          </div>
+
+          <div className="p-5 bg-slate-950 border border-amber-500/40 rounded-xl space-y-3">
+            <h4 className="text-sm font-bold text-amber-400">Live Gate Pass → Dispatch (stock-checked)</h4>
+            <form onSubmit={handleCreateLiveDispatch} className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <select value={dispatchForm.quarryId} onChange={(e) => setDispatchForm({ ...dispatchForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white">
+                <option value="">Select quarry</option>
+                {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
+              </select>
+              <select value={dispatchForm.productId} onChange={(e) => setDispatchForm({ ...dispatchForm, productId: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white">
+                <option value="">Select product</option>
+                {erpProducts.map((product) => <option key={product.id} value={product.id}>{product.code}</option>)}
+              </select>
+              <input placeholder="Customer name" value={dispatchForm.customerName} onChange={(e) => setDispatchForm({ ...dispatchForm, customerName: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input placeholder="Vehicle number" value={dispatchForm.vehicleNumber} onChange={(e) => setDispatchForm({ ...dispatchForm, vehicleNumber: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input placeholder="Driver name" value={dispatchForm.driverName} onChange={(e) => setDispatchForm({ ...dispatchForm, driverName: e.target.value })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white" />
+              <input type="number" min={0.001} step="0.001" value={dispatchForm.quantity} onChange={(e) => setDispatchForm({ ...dispatchForm, quantity: Number(e.target.value) })} className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono" />
+              <button type="submit" className="md:col-span-3 py-2 bg-amber-500 text-slate-950 font-bold rounded-lg">Issue Gate Pass &amp; Dispatch</button>
+            </form>
+            <div className="text-[11px] font-mono text-slate-400">
+              {gatePasses.slice(0, 5).map((gp) => (
+                <div key={gp.id}>{gp.gatePassNumber} · {gp.status}</div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">

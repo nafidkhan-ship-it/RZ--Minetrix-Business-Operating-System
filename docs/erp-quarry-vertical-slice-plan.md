@@ -1,6 +1,8 @@
 # ERP Quarry Vertical Slice — Implementation Plan
 
-Status: **SCHEMA GROUNDWORK ONLY** (migration `0005_erp_quarry_foundation.sql`)
+Status: **Quarry API TEST VERIFIED locally. Operations vertical slice (production/stock/gate pass/dispatch/settlement) implemented with migration `0006_erp_operations_vertical_slice.sql`.**
+
+GCP Stage 5A remains **PARKED / NOT LIVE VERIFIED**.
 
 ## UI source mapping (Phase 17 Mining Operations)
 

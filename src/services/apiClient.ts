@@ -208,6 +208,182 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listProducts(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/products', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createProduct(payload: {
+    code: string;
+    name: string;
+    category: string;
+    defaultUom?: string;
+    gstPercent?: number;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/products', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listLandParcels(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/land-parcels', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createLandParcel(payload: {
+    surveyNumber: string;
+    villageTaluk?: string;
+    acreage?: number;
+    ownerName: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/land-parcels', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listProductionBatches(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/production/batches', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createProductionBatch(payload: {
+    quarryId: string;
+    batchNumber: string;
+    productionDate: string;
+    shiftName?: string;
+    postImmediately?: boolean;
+    lines: Array<{ productId: string; quantity: number; quantityUom?: string }>;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/production/batches', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listStockBalances(quarryId?: string): Promise<ApiResponse> {
+    try {
+      const query = quarryId ? `?quarryId=${encodeURIComponent(quarryId)}` : '';
+      const res = await fetch(`/api/v1/erp/stock/balances${query}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listCustomers(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/customers', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createCustomer(payload: {
+    code: string;
+    name: string;
+    destination?: string;
+    phone?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/customers', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createGatePass(payload: {
+    gatePassNumber: string;
+    quarryId: string;
+    customerId: string;
+    vehicleNumber: string;
+    driverName: string;
+    destination?: string;
+    lines: Array<{ productId: string; quantity: number; quantityUom?: string }>;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/gate-passes', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async transitionGatePass(gatePassId: string, action: 'approve' | 'issue' | 'cancel'): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/gate-passes/${gatePassId}/${action}`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createDispatch(payload: { dispatchNumber: string; gatePassId: string }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/dispatches', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listGatePasses(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/gate-passes', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();
