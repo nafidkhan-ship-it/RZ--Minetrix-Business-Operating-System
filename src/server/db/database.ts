@@ -92,6 +92,8 @@ export class DatabaseStore {
       const hasData = (parsed.tenants?.length || 0) > 0;
       if (hasData) {
         this.loadFromDump(parsed);
+        this.ensureHrmsPermissionCatalog();
+        this.ensureFleetPermissionCatalog();
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
         if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
           await syncRelationalTenantData({
@@ -101,6 +103,7 @@ export class DatabaseStore {
             auditLogs: parsed.auditLogs || []
           });
         }
+        await this.persistToDisk();
         this.initialized = true;
         return;
       }
@@ -159,6 +162,107 @@ export class DatabaseStore {
       await this.persistenceAdapter.saveAll(dump);
     } catch (err) {
       console.error('[DB] Error persisting database state:', err);
+    }
+  }
+
+  /** Additive RBAC catalog so existing persisted snapshots pick up new HRMS permissions. */
+  private ensureHrmsPermissionCatalog(): void {
+    const catalog: Permission[] = [
+      { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
+      { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
+      { id: 'p26', code: 'hrms:employee:update', module: 'HRMS', action: 'update', description: 'Update or archive employees' },
+      { id: 'p27', code: 'hrms:attendance:view', module: 'HRMS', action: 'view', description: 'View attendance' },
+      { id: 'p28', code: 'hrms:attendance:create', module: 'HRMS', action: 'create', description: 'Record attendance' },
+      { id: 'p29', code: 'hrms:leave:view', module: 'HRMS', action: 'view', description: 'View leave requests' },
+      { id: 'p30', code: 'hrms:leave:create', module: 'HRMS', action: 'create', description: 'Request leave' },
+      { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
+      { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
+      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' }
+    ];
+
+    for (const permission of catalog) {
+      const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
+      if (!existing) {
+        this.permissions.set(permission.id, permission);
+      }
+    }
+
+    const adminRole = Array.from(this.roles.values()).find((role) => role.code === 'SUPER_ADMIN');
+    const quarryRole = Array.from(this.roles.values()).find((role) => role.code === 'QUARRY_MANAGER');
+    const grant = (roleId: string, permissionCode: string) => {
+      const permission = Array.from(this.permissions.values()).find((item) => item.code === permissionCode);
+      if (!permission) return;
+      const already = Array.from(this.rolePermissions.values()).some(
+        (row) => row.roleId === roleId && (row.permissionId === permission.id || row.permissionCode === permission.code)
+      );
+      if (already) return;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId,
+        permissionId: permission.id,
+        permissionCode: permission.code
+      });
+    };
+
+    if (adminRole) {
+      for (const permission of catalog) grant(adminRole.id, permission.code);
+    }
+    if (quarryRole) {
+      for (const code of [
+        'hrms:employee:view',
+        'hrms:employee:create',
+        'hrms:employee:update',
+        'hrms:attendance:view',
+        'hrms:attendance:create',
+        'hrms:leave:view',
+        'hrms:leave:create',
+        'hrms:leave:approve'
+      ]) {
+        grant(quarryRole.id, code);
+      }
+    }
+  }
+
+  private ensureFleetPermissionCatalog(): void {
+    const catalog: Permission[] = [
+      { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
+      { id: 'p34', code: 'fleet:vehicle:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle master' },
+      { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
+      { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
+      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' },
+      { id: 'p38', code: 'fleet:driver:view', module: 'Fleet', action: 'view', description: 'View fleet driver master' },
+      { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
+      { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
+      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' }
+    ];
+    for (const permission of catalog) {
+      const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
+      if (!existing) this.permissions.set(permission.id, permission);
+    }
+    const adminRole = Array.from(this.roles.values()).find((role) => role.code === 'SUPER_ADMIN');
+    const quarryRole = Array.from(this.roles.values()).find((role) => role.code === 'QUARRY_MANAGER');
+    const grant = (roleId: string, permissionCode: string) => {
+      const permission = Array.from(this.permissions.values()).find((item) => item.code === permissionCode);
+      if (!permission) return;
+      const already = Array.from(this.rolePermissions.values()).some(
+        (row) => row.roleId === roleId && (row.permissionId === permission.id || row.permissionCode === permission.code)
+      );
+      if (already) return;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId,
+        permissionId: permission.id,
+        permissionCode: permission.code
+      });
+    };
+    if (adminRole) {
+      for (const permission of catalog) grant(adminRole.id, permission.code);
+    }
+    if (quarryRole) {
+      grant(quarryRole.id, 'fleet:vehicle:view');
+      grant(quarryRole.id, 'fleet:driver:view');
     }
   }
 
@@ -258,9 +362,43 @@ export class DatabaseStore {
       { id: 'p1', code: 'shared:admin:access', module: 'Shared Core', action: 'admin', description: 'Full Platform Admin Rights' },
       { id: 'p2', code: 'mining:quarry:create', module: 'Mining', action: 'create', description: 'Create Quarry Records' },
       { id: 'p3', code: 'mining:quarry:view', module: 'Mining', action: 'view', description: 'View Quarry Records' },
+      { id: 'p8', code: 'mining:product:view', module: 'Mining', action: 'view', description: 'View ERP products and prices' },
+      { id: 'p9', code: 'mining:product:create', module: 'Mining', action: 'create', description: 'Manage ERP products and prices' },
+      { id: 'p10', code: 'mining:production:view', module: 'Mining', action: 'view', description: 'View production batches' },
+      { id: 'p11', code: 'mining:production:create', module: 'Mining', action: 'create', description: 'Create and post production batches' },
+      { id: 'p12', code: 'mining:stock:view', module: 'Mining', action: 'view', description: 'View stock balances and ledger' },
+      { id: 'p13', code: 'mining:stock:adjust', module: 'Mining', action: 'adjust', description: 'Post stock adjustments' },
+      { id: 'p14', code: 'mining:gatepass:view', module: 'Mining', action: 'view', description: 'View gate passes' },
+      { id: 'p15', code: 'mining:gatepass:create', module: 'Mining', action: 'create', description: 'Create gate passes' },
+      { id: 'p16', code: 'mining:gatepass:approve', module: 'Mining', action: 'approve', description: 'Approve, issue, or cancel gate passes' },
+      { id: 'p17', code: 'mining:dispatch:view', module: 'Mining', action: 'view', description: 'View dispatches' },
+      { id: 'p18', code: 'mining:dispatch:create', module: 'Mining', action: 'create', description: 'Create dispatches' },
+      { id: 'p19', code: 'mining:settlement:view', module: 'Mining', action: 'view', description: 'View landowner settlements' },
+      { id: 'p20', code: 'mining:settlement:create', module: 'Mining', action: 'create', description: 'Create landowner settlements' },
+      { id: 'p21', code: 'mining:crm:view', module: 'Mining', action: 'view', description: 'View CRM customers, contacts, and leads' },
+      { id: 'p22', code: 'mining:crm:create', module: 'Mining', action: 'create', description: 'Create CRM customers, contacts, and leads' },
+      { id: 'p23', code: 'mining:order:view', module: 'Mining', action: 'view', description: 'View sales orders' },
+      { id: 'p24', code: 'mining:order:create', module: 'Mining', action: 'create', description: 'Create and confirm sales orders' },
       { id: 'p4', code: 'fleet:vehicle:dispatch', module: 'Fleet', action: 'dispatch', description: 'Dispatch Fleet Vehicles' },
+      { id: 'p34', code: 'fleet:vehicle:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle master' },
+      { id: 'p35', code: 'fleet:vehicle:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicles' },
+      { id: 'p36', code: 'fleet:vehicle:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicles' },
+      { id: 'p37', code: 'fleet:vehicle:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicles' },
+      { id: 'p38', code: 'fleet:driver:view', module: 'Fleet', action: 'view', description: 'View fleet driver master' },
+      { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
+      { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
+      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
+      { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
+      { id: 'p26', code: 'hrms:employee:update', module: 'HRMS', action: 'update', description: 'Update or archive employees' },
+      { id: 'p27', code: 'hrms:attendance:view', module: 'HRMS', action: 'view', description: 'View attendance' },
+      { id: 'p28', code: 'hrms:attendance:create', module: 'HRMS', action: 'create', description: 'Record attendance' },
+      { id: 'p29', code: 'hrms:leave:view', module: 'HRMS', action: 'view', description: 'View leave requests' },
+      { id: 'p30', code: 'hrms:leave:create', module: 'HRMS', action: 'create', description: 'Request leave' },
+      { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
+      { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
+      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' },
       { id: 'p7', code: 'chat:message:send', module: 'RZ Chat', action: 'send', description: 'Send Realtime Chat Messages' }
     ];
     permList.forEach(p => this.permissions.set(p.id, p));
@@ -387,7 +525,11 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
-    const quarryPermIds = ['p2', 'p3'];
+    const quarryPermIds = [
+      'p2', 'p3', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24',
+      'p6', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30', 'p31',
+      'p4', 'p34', 'p38'
+    ];
     for (const permId of quarryPermIds) {
       const perm = permList.find((item) => item.id === permId);
       if (!perm) continue;

@@ -227,6 +227,120 @@ export async function runPostgresRlsIntegrationTests(): Promise<{
     record('Pooled connection has no retained tenant context after transaction ends', false, error.message);
   }
 
+  try {
+    const leadId = `lead-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO erp_leads (id, tenant_id, code, company_name) VALUES ($1,$2,$3,$4)`,
+        [leadId, TENANT_A, `RLS-${Date.now().toString().slice(-6)}`, 'RLS Lead Co']
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM erp_leads WHERE id = $1`, [leadId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM erp_leads WHERE id = $1`, [leadId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'CRM leads RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('CRM leads RLS hides rows from other tenant', false, error.message);
+  }
+
+  try {
+    const employeeId = `emp-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO hrms_employees (id, tenant_id, code, full_name, joining_date, department, designation)
+         VALUES ($1,$2,$3,$4,'2026-01-01','Mining','Operator')`,
+        [employeeId, TENANT_A, `EMP-RLS-${Date.now().toString().slice(-6)}`, 'RLS Employee']
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM hrms_employees WHERE id = $1`, [employeeId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM hrms_employees WHERE id = $1`, [employeeId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'HRMS employees RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('HRMS employees RLS hides rows from other tenant', false, error.message);
+  }
+
+  try {
+    const vehicleId = `veh-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO fleet_vehicles (
+          id, tenant_id, registration_number, vehicle_type, make, model, manufacturing_year,
+          fuel_type, ownership_type, capacity
+        ) VALUES ($1,$2,$3,'TIPPER','Tata','Signa',2022,'DIESEL','COMPANY',20)`,
+        [vehicleId, TENANT_A, `KA-RLS-${Date.now().toString().slice(-6)}`]
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_vehicles WHERE id = $1`, [vehicleId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_vehicles WHERE id = $1`, [vehicleId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'Fleet vehicles RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('Fleet vehicles RLS hides rows from other tenant', false, error.message);
+  }
+
+  try {
+    const driverId = `drv-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO fleet_drivers (
+          id, tenant_id, full_name, license_number, license_class, status
+        ) VALUES ($1,$2,'RLS Driver',$3,'HMV','ACTIVE')`,
+        [driverId, TENANT_A, `KA-DL-${Date.now().toString().slice(-6)}`]
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_drivers WHERE id = $1`, [driverId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM fleet_drivers WHERE id = $1`, [driverId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'Fleet drivers RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('Fleet drivers RLS hides rows from other tenant', false, error.message);
+  }
+
   // Cleanup test rows
   try {
     await deleteCompanyCrossTenantAttempt(TENANT_A, COMPANY_A);
