@@ -35,6 +35,13 @@ const writePayment = [authenticateJwt, rejectClientTenantId, enforceTenantContex
 const viewExpense = [authenticateJwt, enforceTenantContext, requirePermission('finance:expense:view')] as const;
 const writeExpense = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('finance:expense:create')] as const;
 const approveExpense = [authenticateJwt, enforceTenantContext, requirePermission('finance:expense:approve')] as const;
+const viewReports = [authenticateJwt, enforceTenantContext, requirePermission('finance:report:view')] as const;
+
+function parseDateRangeQuery(req: CustomRequest) {
+  const fromDate = typeof req.query.fromDate === 'string' ? req.query.fromDate : undefined;
+  const toDate = typeof req.query.toDate === 'string' ? req.query.toDate : undefined;
+  return { fromDate, toDate };
+}
 
 financeRouter.get('/accounts', ...viewFinance, async (req: CustomRequest, res: Response) => {
   try {
@@ -210,6 +217,86 @@ financeRouter.post('/expenses/:id/approve', ...approveExpense, validateResourceI
 financeRouter.post('/expenses/:id/reject', ...approveExpense, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
     return res.json({ success: true, data: await finance.transitionExpense(req.user!.tenantId, req.params.id, 'REJECTED', req.user!.userId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/sales-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.salesSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/invoice-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.invoiceSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/receivables', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.receivablesReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/payments-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.paymentsSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/outstanding-balances', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.outstandingBalancesReport(req.user!.tenantId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/expenses-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.expensesSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/income-expense-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.incomeExpenseSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/cash-flow', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.cashFlowReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/transaction-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.transactionSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
+  }
+});
+
+financeRouter.get('/reports/settlement-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await finance.settlementFinancialSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
   } catch (error) {
     return handleFinanceError(error, res);
   }

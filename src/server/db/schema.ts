@@ -177,10 +177,13 @@ export interface Notification {
   title: string;
   body: string;
   type: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
-  channel: 'IN_APP' | 'EMAIL' | 'WHATSAPP' | 'PUSH';
+  channel: 'IN_APP' | 'EMAIL' | 'WHATSAPP' | 'PUSH' | 'SMS';
   isRead: boolean;
   readAt?: string;
   linkUrl?: string;
+  relatedModule?: string;
+  relatedRecordType?: string;
+  relatedRecordId?: string;
   createdAt: string;
 }
 

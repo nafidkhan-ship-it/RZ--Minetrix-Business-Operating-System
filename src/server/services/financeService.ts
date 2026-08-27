@@ -1,8 +1,10 @@
 import { FinanceRepository } from '../repositories/financeRepository.js';
+import { FinanceReportRepository } from '../repositories/financeReportRepository.js';
 import { ErpServiceError } from './erpErrors.js';
 
 export class FinanceService {
   private repo = new FinanceRepository();
+  private reportRepo = new FinanceReportRepository();
 
   createAccount(tenantId: string, input: Parameters<FinanceRepository['createAccount']>[1]) {
     return this.repo.createAccount(tenantId, input);
@@ -76,5 +78,45 @@ export class FinanceService {
     const journal = await this.repo.getJournal(tenantId, id);
     if (!journal) throw new ErpServiceError('NOT_FOUND', 'Journal not found.', 404);
     return journal;
+  }
+
+  salesSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.salesSummaryReport(tenantId, filters);
+  }
+
+  invoiceSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.invoiceSummaryReport(tenantId, filters);
+  }
+
+  receivablesReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.receivablesReport(tenantId, filters);
+  }
+
+  paymentsSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.paymentsSummaryReport(tenantId, filters);
+  }
+
+  outstandingBalancesReport(tenantId: string) {
+    return this.reportRepo.outstandingBalancesReport(tenantId);
+  }
+
+  expensesSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.expensesSummaryReport(tenantId, filters);
+  }
+
+  incomeExpenseSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.incomeExpenseSummaryReport(tenantId, filters);
+  }
+
+  cashFlowReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.cashFlowReport(tenantId, filters);
+  }
+
+  transactionSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.transactionSummaryReport(tenantId, filters);
+  }
+
+  settlementFinancialSummaryReport(tenantId: string, filters?: { fromDate?: string; toDate?: string }) {
+    return this.reportRepo.settlementFinancialSummaryReport(tenantId, filters);
   }
 }

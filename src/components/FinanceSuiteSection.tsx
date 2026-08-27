@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FinanceOperationsPanel } from './FinanceOperationsPanel';
 import { 
   FINANCE_SUITE_MODULES, 
   BUSINESS_UNITS_DATA, 
@@ -66,7 +67,12 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export const FinanceSuiteSection: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'modules' | 'coa' | 'workflows' | 'integrations' | 'structure' | 'security' | 'review'>('modules');
+  const [activeTab, setActiveTab] = useState<'live-ops' | 'modules' | 'coa' | 'workflows' | 'integrations' | 'structure' | 'security' | 'review'>('modules');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeModule, setActiveModule] = useState<FinanceSuiteModule>(FINANCE_SUITE_MODULES[0]);
@@ -139,6 +145,17 @@ export const FinanceSuiteSection: React.FC = () => {
 
         {/* Section Navigation Tabs */}
         <div className="flex items-center gap-2 mt-8 pt-6 border-t border-slate-800/80 overflow-x-auto pb-1">
+          <button
+            onClick={() => setActiveTab('live-ops')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 cursor-pointer ${
+              activeTab === 'live-ops'
+                ? 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20'
+                : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Live Finance Ops</span>
+          </button>
           <button
             onClick={() => setActiveTab('modules')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 cursor-pointer ${
@@ -224,6 +241,18 @@ export const FinanceSuiteSection: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl shadow-2xl text-xs">
+          {toastMessage}
+        </div>
+      )}
+
+      {activeTab === 'live-ops' && (
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
+          <FinanceOperationsPanel onToast={showToast} />
+        </div>
+      )}
 
       {/* TAB 1: 16 FINANCE MODULES */}
       {activeTab === 'modules' && (

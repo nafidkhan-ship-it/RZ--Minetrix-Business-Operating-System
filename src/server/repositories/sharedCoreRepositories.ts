@@ -1,4 +1,6 @@
 import { db, generateUuidV7 } from '../db/database.js';
+import { withTenantTransaction } from '../db/tenantContext.js';
+import { isPostgresEnabled } from '../db/postgresPool.js';
 import {
   Tenant,
   Company,
@@ -173,15 +175,83 @@ export class AuditRepository {
 }
 
 export class NotificationRepository {
+  private mapRow(row: Record<string, unknown>): Notification {
+    const createdRaw = row.created_at ?? row.createdAt;
+    const createdAt =
+      createdRaw instanceof Date
+        ? createdRaw.toISOString()
+        : new Date(String(createdRaw ?? '')).toISOString();
+    const readRaw = row.read_at ?? row.readAt;
+    const readAt =
+      readRaw instanceof Date
+        ? readRaw.toISOString()
+        : readRaw
+          ? new Date(String(readRaw)).toISOString()
+          : undefined;
+    return {
+      id: String(row.id),
+      tenantId: String(row.tenant_id ?? row.tenantId),
+      recipientUserId: String(row.recipient_user_id ?? row.recipientUserId),
+      title: String(row.title),
+      body: String(row.message ?? row.body ?? ''),
+      type: (row.notification_type ?? row.type) as Notification['type'],
+      channel: (row.channel ?? 'IN_APP') as Notification['channel'],
+      isRead: Boolean(row.is_read ?? row.isRead),
+      readAt,
+      linkUrl: row.link_url ? String(row.link_url) : row.linkUrl as string | undefined,
+      relatedModule: row.related_module ? String(row.related_module) : row.relatedModule as string | undefined,
+      relatedRecordType: row.related_record_type ? String(row.related_record_type) : row.relatedRecordType as string | undefined,
+      relatedRecordId: row.related_record_id ? String(row.related_record_id) : row.relatedRecordId as string | undefined,
+      createdAt
+    };
+  }
+
   async findByRecipient(userId: string, tenantId: string): Promise<Notification[]> {
+    if (isPostgresEnabled()) {
+      return withTenantTransaction(tenantId, async (client) => {
+        const result = await client.query(
+          `SELECT * FROM core_notifications
+           WHERE tenant_id = $1 AND recipient_user_id = $2
+           ORDER BY created_at DESC LIMIT 200`,
+          [tenantId, userId]
+        );
+        return result.rows.map((row) => this.mapRow(row));
+      });
+    }
     return Array.from(db.notifications.values())
       .filter(n => n.recipientUserId === userId && n.tenantId === tenantId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   async create(notifData: Partial<Notification>): Promise<Notification> {
+    const id = notifData.id || generateUuidV7();
+    if (isPostgresEnabled()) {
+      const tenantId = notifData.tenantId!;
+      return withTenantTransaction(tenantId, async (client) => {
+        const result = await client.query(
+          `INSERT INTO core_notifications (
+            id, tenant_id, recipient_user_id, notification_type, title, message,
+            related_module, related_record_type, related_record_id, link_url, channel
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          [
+            id,
+            tenantId,
+            notifData.recipientUserId!,
+            notifData.type || 'INFO',
+            notifData.title!,
+            notifData.body || '',
+            notifData.relatedModule || null,
+            notifData.relatedRecordType || null,
+            notifData.relatedRecordId || null,
+            notifData.linkUrl || null,
+            notifData.channel || 'IN_APP'
+          ]
+        );
+        return this.mapRow(result.rows[0]);
+      });
+    }
     const newNotif: Notification = {
-      id: notifData.id || generateUuidV7(),
+      id,
       tenantId: notifData.tenantId!,
       recipientUserId: notifData.recipientUserId!,
       title: notifData.title!,
@@ -189,6 +259,10 @@ export class NotificationRepository {
       type: notifData.type || 'INFO',
       channel: notifData.channel || 'IN_APP',
       isRead: false,
+      linkUrl: notifData.linkUrl,
+      relatedModule: notifData.relatedModule,
+      relatedRecordType: notifData.relatedRecordType,
+      relatedRecordId: notifData.relatedRecordId,
       createdAt: new Date().toISOString()
     };
     db.notifications.set(newNotif.id, newNotif);
@@ -196,14 +270,64 @@ export class NotificationRepository {
     return newNotif;
   }
 
-  async markAsRead(id: string, tenantId: string): Promise<boolean> {
+  async markAsRead(id: string, tenantId: string, recipientUserId: string): Promise<Notification | null> {
+    if (isPostgresEnabled()) {
+      return withTenantTransaction(tenantId, async (client) => {
+        const result = await client.query(
+          `UPDATE core_notifications SET is_read = TRUE, read_at = NOW()
+           WHERE tenant_id = $1 AND id = $2 AND recipient_user_id = $3
+           RETURNING *`,
+          [tenantId, id, recipientUserId]
+        );
+        return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+      });
+    }
     const notif = db.notifications.get(id);
-    if (!notif || notif.tenantId !== tenantId) return false;
+    if (!notif || notif.tenantId !== tenantId || notif.recipientUserId !== recipientUserId) return null;
     notif.isRead = true;
     notif.readAt = new Date().toISOString();
     db.notifications.set(id, notif);
     db.schedulePersist();
-    return true;
+    return notif;
+  }
+
+  async markAllAsRead(tenantId: string, recipientUserId: string): Promise<number> {
+    if (isPostgresEnabled()) {
+      return withTenantTransaction(tenantId, async (client) => {
+        const result = await client.query(
+          `UPDATE core_notifications SET is_read = TRUE, read_at = NOW()
+           WHERE tenant_id = $1 AND recipient_user_id = $2 AND is_read = FALSE`,
+          [tenantId, recipientUserId]
+        );
+        return result.rowCount || 0;
+      });
+    }
+    let count = 0;
+    for (const notif of db.notifications.values()) {
+      if (notif.tenantId === tenantId && notif.recipientUserId === recipientUserId && !notif.isRead) {
+        notif.isRead = true;
+        notif.readAt = new Date().toISOString();
+        db.notifications.set(notif.id, notif);
+        count++;
+      }
+    }
+    if (count > 0) db.schedulePersist();
+    return count;
+  }
+
+  async getById(id: string, tenantId: string, recipientUserId: string): Promise<Notification | null> {
+    if (isPostgresEnabled()) {
+      return withTenantTransaction(tenantId, async (client) => {
+        const result = await client.query(
+          `SELECT * FROM core_notifications WHERE tenant_id = $1 AND id = $2 AND recipient_user_id = $3 LIMIT 1`,
+          [tenantId, id, recipientUserId]
+        );
+        return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+      });
+    }
+    const notif = db.notifications.get(id);
+    if (!notif || notif.tenantId !== tenantId || notif.recipientUserId !== recipientUserId) return null;
+    return notif;
   }
 }
 

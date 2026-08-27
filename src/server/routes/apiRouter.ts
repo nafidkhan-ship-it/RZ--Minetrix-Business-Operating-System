@@ -178,8 +178,35 @@ apiRouter.get('/notifications', authenticateJwt, enforceTenantContext, async (re
   return res.json(result);
 });
 
+apiRouter.post('/notifications/:id/read', authenticateJwt, enforceTenantContext, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  const result = await notifService.markNotificationRead(req.user!.tenantId, req.user!.userId, req.params.id);
+  if (!result.success) return res.status(404).json(result);
+  return res.json(result);
+});
+
+apiRouter.post('/notifications/read-all', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+  const result = await notifService.markAllNotificationsRead(req.user!.tenantId, req.user!.userId);
+  return res.json(result);
+});
+
+apiRouter.post('/notifications', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
+  const { title, body, type, relatedModule, relatedRecordType, relatedRecordId, linkUrl } = req.body || {};
+  if (!title || typeof title !== 'string') {
+    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'title is required.' });
+  }
+  const result = await notifService.createNotification(
+    req.user!.tenantId,
+    req.user!.userId,
+    title,
+    typeof body === 'string' ? body : '',
+    (type as 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS') || 'INFO',
+    { relatedModule, relatedRecordType, relatedRecordId, linkUrl }
+  );
+  return res.status(201).json(result);
+});
+
 apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
-  const { recipientUserId, recipientEmail, title, body, channel, type } = req.body || {};
+  const { recipientUserId, recipientEmail, title, body, channel, type, relatedModule, relatedRecordType, relatedRecordId, linkUrl } = req.body || {};
   const result = await notificationDispatcher.dispatch({
     tenantId: req.user!.tenantId,
     recipientUserId: recipientUserId || req.user!.userId,
@@ -187,16 +214,17 @@ apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext,
     title: title || 'System Notification',
     body: body || '',
     channel: channel || 'IN_APP',
-    type: type || 'INFO'
+    type: type || 'INFO',
+    linkUrl
   });
 
-  // Also persist in notification feed
   await notifService.createNotification(
     req.user!.tenantId,
     recipientUserId || req.user!.userId,
     title || 'Notification',
     body || '',
-    type || 'INFO'
+    type || 'INFO',
+    { relatedModule, relatedRecordType, relatedRecordId, linkUrl, channel: channel || 'IN_APP' }
   );
 
   return res.json({ success: true, deliveryResult: result });

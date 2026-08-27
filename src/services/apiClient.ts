@@ -1038,6 +1038,104 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listFinanceAccounts(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/finance/accounts', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFinanceTransactions(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/finance/transactions', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFinanceInvoices(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/finance/invoices', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFinancePayments(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/finance/payments', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFinanceExpenses(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/finance/expenses', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async getFinanceReport(
+    report: 'sales-summary' | 'invoice-summary' | 'receivables' | 'payments-summary' | 'outstanding-balances' | 'expenses-summary' | 'income-expense-summary' | 'cash-flow' | 'transaction-summary' | 'settlement-summary',
+    params?: { fromDate?: string; toDate?: string }
+  ): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.fromDate) query.set('fromDate', params.fromDate);
+      if (params?.toDate) query.set('toDate', params.toDate);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/finance/reports/${report}${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createNotification(payload: { title: string; body?: string; type?: string; relatedModule?: string; relatedRecordType?: string; relatedRecordId?: string }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/notifications', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async markNotificationRead(notificationId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async markAllNotificationsRead(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/notifications/read-all', {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();
