@@ -145,6 +145,69 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listQuarries(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/quarries', {
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createQuarry(payload: {
+    code: string;
+    name: string;
+    mineralType?: string;
+    operationalStatus?: string;
+    capacityTons?: number;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/quarries', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateQuarry(
+    quarryId: string,
+    payload: {
+      name?: string;
+      mineralType?: string;
+      operationalStatus?: string;
+      capacityTons?: number;
+    }
+  ): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/quarries/${quarryId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveQuarry(quarryId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/erp/quarries/${quarryId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();

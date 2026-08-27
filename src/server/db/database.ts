@@ -20,6 +20,8 @@ import {
   WorkflowAction
 } from './schema.js';
 import { IPersistenceAdapter, LocalJsonPersistenceAdapter, PostgresPersistenceAdapter, DatabaseTables } from './persistenceAdapter.js';
+import { syncRelationalTenantData } from './relationalTenantStore.js';
+import { isProduction } from '../config/securityConfig.js';
 
 // Utility: UUID v7 generator (RFC 9562 compliant timestamp-ordered UUID)
 export function generateUuidV7(): string {
@@ -56,38 +58,59 @@ export class DatabaseStore {
 
   public persistenceAdapter: IPersistenceAdapter;
   private storageFilePath: string;
+  private initialized = false;
 
   constructor() {
     this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
-    if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
+    const hasPostgres = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+
+    if (isProduction() && !hasPostgres) {
+      throw new Error('Production requires DATABASE_URL. JSON persistence fallback is not permitted.');
+    }
+
+    if (hasPostgres) {
       this.persistenceAdapter = new PostgresPersistenceAdapter();
     } else {
       this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);
     }
-    this.initializeAndSeed();
   }
 
-  private initializeAndSeed() {
-    // Ensure directory exists
+  public async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    await this.persistenceAdapter.initialize();
+
     const dir = path.dirname(this.storageFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    if (fs.existsSync(this.storageFilePath)) {
-      try {
-        const fileContent = fs.readFileSync(this.storageFilePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
+    try {
+      const parsed = await this.persistenceAdapter.loadAll();
+      const hasData = (parsed.tenants?.length || 0) > 0;
+      if (hasData) {
         this.loadFromDump(parsed);
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
+        if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
+          await syncRelationalTenantData({
+            companies: parsed.companies || [],
+            branches: parsed.branches || [],
+            users: parsed.users || [],
+            auditLogs: parsed.auditLogs || []
+          });
+        }
+        this.initialized = true;
         return;
-      } catch (err) {
-        console.warn('[DB] Failed to parse db json file, seeding fresh database:', err);
       }
+    } catch (err) {
+      console.warn('[DB] Failed to load persistence state, seeding fresh database:', err);
     }
 
     this.seedDefaultEnterpriseData();
-    this.persistToDisk();
+    await this.persistToDisk();
+    this.initialized = true;
   }
 
   private loadFromDump(dump: any) {
@@ -109,7 +132,11 @@ export class DatabaseStore {
     if (dump.workflowActions) dump.workflowActions.forEach((item: WorkflowAction) => this.workflowActions.set(item.id, item));
   }
 
-  public persistToDisk() {
+  public schedulePersist(): void {
+    void this.persistToDisk();
+  }
+
+  public async persistToDisk(): Promise<void> {
     try {
       const dump = {
         tenants: Array.from(this.tenants.values()),
@@ -129,9 +156,9 @@ export class DatabaseStore {
         workflowInstances: Array.from(this.workflowInstances.values()),
         workflowActions: Array.from(this.workflowActions.values())
       };
-      fs.writeFileSync(this.storageFilePath, JSON.stringify(dump, null, 2), 'utf-8');
+      await this.persistenceAdapter.saveAll(dump);
     } catch (err) {
-      console.error('[DB] Error persisting database to disk:', err);
+      console.error('[DB] Error persisting database state:', err);
     }
   }
 
@@ -360,6 +387,19 @@ export class DatabaseStore {
       assignedBy: userAdmin.id
     });
 
+    const quarryPermIds = ['p2', 'p3'];
+    for (const permId of quarryPermIds) {
+      const perm = permList.find((item) => item.id === permId);
+      if (!perm) continue;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId: roleQuarryMgr.id,
+        permissionId: perm.id,
+        permissionCode: perm.code
+      });
+    }
+
     // 7. Master Data
     const md1: MasterData = {
       id: 'md-uom-mt',
@@ -429,3 +469,7 @@ export class DatabaseStore {
 
 // Global Singleton DB Instance
 export const db = new DatabaseStore();
+
+export async function initializeDatabase(): Promise<void> {
+  await db.initialize();
+}
