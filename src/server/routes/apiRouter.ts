@@ -238,7 +238,9 @@ apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, rej
 // 8. AUDIT LOG ENDPOINTS
 // ==========================================
 apiRouter.get('/audit/search', authenticateJwt, enforceTenantContext, requirePermission('shared:admin:access'), async (req: CustomRequest, res: Response) => {
-  const result = await auditService.getAuditLogs(req.user!.tenantId, 50);
+  const requested = Number(req.query.limit);
+  const limit = Number.isFinite(requested) ? Math.min(200, Math.max(1, requested)) : 50;
+  const result = await auditService.getAuditLogs(req.user!.tenantId, limit);
   return res.json(result);
 });
 

@@ -398,11 +398,11 @@ export class ErpOperationsRepository {
         if (gatePass.status === 'CANCELLED') {
           throw new ErpServiceError('GATE_PASS_CANCELLED', 'Cannot dispatch a cancelled gate pass.');
         }
+        if (gatePass.status === 'DISPATCHED' || gatePass.dispatch_id) {
+          throw new ErpServiceError('DUPLICATE_DISPATCH', 'This gate pass already has a dispatch.', 409);
+        }
         if (gatePass.status !== 'ISSUED') {
           throw new ErpServiceError('INVALID_STATUS', 'Gate pass must be ISSUED before dispatch.');
-        }
-        if (gatePass.dispatch_id) {
-          throw new ErpServiceError('DUPLICATE_DISPATCH', 'This gate pass already has a dispatch.', 409);
         }
 
         const requiresFleet = Boolean(gatePass.order_id || gatePass.vehicle_id || gatePass.driver_id);

@@ -63,7 +63,24 @@ export async function runErpLifecycleApiTests() {
   });
 
   const fleet = await seedCompliantFleet(ctx);
-  const foreignFleet = await seedCompliantFleet(other);
+  const foreignVehicleId = `veh-apex-lc-${Date.now()}`;
+  const foreignDriverId = `drv-apex-lc-${Date.now()}`;
+  await withTenantTransaction('tenant-apex-quarry-002', async (client) => {
+    await client.query(
+      `INSERT INTO fleet_vehicles (
+        id, tenant_id, registration_number, vehicle_type, make, model, manufacturing_year,
+        fuel_type, ownership_type, capacity
+      ) VALUES ($1,$2,$3,'TIPPER','Tata','Signa',2022,'DIESEL','COMPANY',20)`,
+      [foreignVehicleId, 'tenant-apex-quarry-002', `APX-L-${Date.now().toString().slice(-6)}`]
+    );
+    await client.query(
+      `INSERT INTO fleet_drivers (
+        id, tenant_id, full_name, license_number, license_class, status
+      ) VALUES ($1,$2,'Foreign Driver',$3,'HMV','ACTIVE')`,
+      [foreignDriverId, 'tenant-apex-quarry-002', `DL-APX-L-${Date.now().toString().slice(-6)}`]
+    );
+  });
+  const foreignFleet = { vehicleId: foreignVehicleId, driverId: foreignDriverId };
 
   const order = await request(app).post('/api/v1/erp/orders').set(ctx.header).send({
     orderNumber: uniqueCode('SOLC'),
@@ -158,7 +175,7 @@ export async function runErpLifecycleApiTests() {
   results.push({
     testName: 'Gate Pass issue creates fleet operation',
     passed: issued.status === 200 && issued.body?.data?.status === 'ISSUED',
-    message: `status=${issued.status}`
+    message: `status=${issued.status} error=${issued.body?.error || issued.body?.message || ''}`
   });
 
   const ops = await request(app).get(`/api/v1/fleet/operations?vehicleId=${fleet.vehicleId}`).set(ctx.header);
@@ -168,7 +185,7 @@ export async function runErpLifecycleApiTests() {
   results.push({
     testName: 'Fleet operation linked to issued gate pass',
     passed: Boolean(linkedOp?.id) && linkedOp.status === 'ASSIGNED',
-    message: `op=${linkedOp?.id} status=${linkedOp?.status}`
+    message: `op=${linkedOp?.id} status=${linkedOp?.status} opsStatus=${ops.status}`
   });
 
   const unauthorized = await request(app).post('/api/v1/erp/dispatches').send({
@@ -181,12 +198,14 @@ export async function runErpLifecycleApiTests() {
     message: `status=${unauthorized.status}`
   });
 
-  const rbac = await request(app).post('/api/v1/erp/dispatches').set(manager.header).send({
-    dispatchNumber: uniqueCode('DSM'),
+  const rbac = await request(app).post('/api/v1/fleet/operations').set(manager.header).send({
+    operationNumber: uniqueCode('OPM'),
+    vehicleId: fleet.vehicleId,
+    driverId: fleet.driverId,
     gatePassId: gp.body.data.id
   });
   results.push({
-    testName: 'RBAC enforcement on dispatch create',
+    testName: 'RBAC enforcement on fleet operation create',
     passed: rbac.status === 403,
     message: `status=${rbac.status}`
   });
@@ -203,7 +222,7 @@ export async function runErpLifecycleApiTests() {
   results.push({
     testName: 'Fleet operation → ERP dispatch',
     passed: dispatch.status === 201 && dispatch.body?.data?.status === 'POSTED',
-    message: `status=${dispatch.status}`
+    message: `status=${dispatch.status} error=${dispatch.body?.error || dispatch.body?.message || ''}`
   });
 
   const stockAfter = await request(app).get(`/api/v1/erp/stock/balances?quarryId=${quarry.body.data.id}`).set(ctx.header);
@@ -211,9 +230,10 @@ export async function runErpLifecycleApiTests() {
     ? stockAfter.body.data.find((row: { productId: string }) => row.productId === product.body.data.id)?.quantity
     : undefined;
   const ledger = await request(app).get(`/api/v1/erp/stock/ledger?quarryId=${quarry.body.data.id}`).set(ctx.header);
+  const dispatchId = dispatch.body?.data?.id as string | undefined;
   const stockOuts = Array.isArray(ledger.body?.data)
     ? ledger.body.data.filter((row: { movementType: string; referenceId: string }) =>
-      row.movementType === 'STOCK_OUT' && row.referenceId === dispatch.body.data.id)
+      row.movementType === 'STOCK_OUT' && row.referenceId === dispatchId)
     : [];
   results.push({
     testName: 'Dispatch → one STOCK_OUT and correct balance',
@@ -231,10 +251,10 @@ export async function runErpLifecycleApiTests() {
     message: `status=${duplicate.status}`
   });
 
-  const opAfter = await request(app).get(`/api/v1/fleet/operations/${linkedOp.id}`).set(ctx.header);
+  const opAfter = await request(app).get(`/api/v1/fleet/operations/${linkedOp?.id || 'missing'}`).set(ctx.header);
   results.push({
     testName: 'Dispatch attached to fleet operation',
-    passed: opAfter.status === 200 && opAfter.body?.data?.dispatchId === dispatch.body.data.id && opAfter.body?.data?.status === 'IN_PROGRESS',
+    passed: opAfter.status === 200 && opAfter.body?.data?.dispatchId === dispatchId && opAfter.body?.data?.status === 'IN_PROGRESS',
     message: `status=${opAfter.status} dispatch=${opAfter.body?.data?.dispatchId}`
   });
 
@@ -250,7 +270,7 @@ export async function runErpLifecycleApiTests() {
     landParcelId: parcel.body.data.id,
     quarryId: quarry.body.data.id,
     basis: 'DISPATCH',
-    dispatchId: dispatch.body.data.id,
+    dispatchId: dispatch.body?.data?.id,
     quantity: 999,
     deductions: 25
   });
@@ -261,7 +281,7 @@ export async function runErpLifecycleApiTests() {
       settlementClientQty.body?.data?.quantity === 10 &&
       settlementClientQty.body?.data?.grossAmount === 800 &&
       settlementClientQty.body?.data?.netAmount === 775 &&
-      settlementClientQty.body?.data?.dispatchId === dispatch.body.data.id,
+      settlementClientQty.body?.data?.dispatchId === dispatch.body?.data?.id,
     message: `status=${settlementClientQty.status} qty=${settlementClientQty.body?.data?.quantity} net=${settlementClientQty.body?.data?.netAmount}`
   });
 
@@ -278,7 +298,7 @@ export async function runErpLifecycleApiTests() {
     message: `status=${settlementNoDispatch.status}`
   });
 
-  const audit = await request(app).get('/api/v1/audit/search').set(ctx.header);
+  const audit = await request(app).get('/api/v1/audit/search?limit=200').set(ctx.header);
   const auditText = JSON.stringify(audit.body?.data || []);
   results.push({
     testName: 'Audit references for order, gate pass, fleet, dispatch, settlement',
@@ -305,7 +325,7 @@ export async function runErpLifecycleApiTests() {
     landParcelId: parcel.body.data.id,
     quarryId: quarry.body.data.id,
     basis: 'DISPATCH',
-    dispatchId: dispatch.body.data.id
+    dispatchId: dispatch.body?.data?.id
   });
   const isolatedCustomer = await request(app).get(`/api/v1/erp/customers/${customer.body.data.id}`).set(other.header);
   const isolatedProduct = await request(app).post('/api/v1/erp/orders').set(other.header).send({

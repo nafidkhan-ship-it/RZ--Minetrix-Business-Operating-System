@@ -104,7 +104,10 @@ export async function seedCompliantFleet(ctx: ErpAuthContext) {
       licenseClass: 'HMV',
       status: 'ACTIVE'
     });
-  const vehicleId = vehicle.body.data.id as string;
+  const vehicleId = vehicle.body?.data?.id as string;
+  if (!vehicleId) {
+    throw new Error(`Failed to seed fleet vehicle: status=${vehicle.status} body=${JSON.stringify(vehicle.body)}`);
+  }
   for (const documentType of ['INSURANCE', 'FITNESS', 'PERMIT']) {
     await request(ctx.app)
       .post('/api/v1/fleet/vehicle-documents')
