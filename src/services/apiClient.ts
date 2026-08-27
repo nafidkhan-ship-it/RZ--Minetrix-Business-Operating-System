@@ -819,6 +819,216 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listFleetVehicleDocuments(params?: { vehicleId?: string; documentType?: string; status?: string; search?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.vehicleId) query.set('vehicleId', params.vehicleId);
+      if (params?.documentType) query.set('documentType', params.documentType);
+      if (params?.status) query.set('status', params.status);
+      if (params?.search) query.set('search', params.search);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/vehicle-documents${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetVehicleDocument(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/vehicle-documents', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetVehicleDocument(documentId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/vehicle-documents/${documentId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetVehicleDocument(documentId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/vehicle-documents/${documentId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFleetMaintenance(params?: { vehicleId?: string; status?: string; search?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.vehicleId) query.set('vehicleId', params.vehicleId);
+      if (params?.status) query.set('status', params.status);
+      if (params?.search) query.set('search', params.search);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/maintenance${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetMaintenance(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/maintenance', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetMaintenance(maintenanceId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/maintenance/${maintenanceId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetMaintenance(maintenanceId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/maintenance/${maintenanceId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFleetFuel(params?: { vehicleId?: string; fuelType?: string; search?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.vehicleId) query.set('vehicleId', params.vehicleId);
+      if (params?.fuelType) query.set('fuelType', params.fuelType);
+      if (params?.search) query.set('search', params.search);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/fuel${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetFuel(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/fuel', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetFuel(fuelId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/fuel/${fuelId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetFuel(fuelId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/fuel/${fuelId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listFleetOperations(params?: { vehicleId?: string; driverId?: string; status?: string; search?: string }): Promise<ApiResponse> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.vehicleId) query.set('vehicleId', params.vehicleId);
+      if (params?.driverId) query.set('driverId', params.driverId);
+      if (params?.status) query.set('status', params.status);
+      if (params?.search) query.set('search', params.search);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`/api/v1/fleet/operations${suffix}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createFleetOperation(payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/fleet/operations', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async updateFleetOperation(operationId: string, payload: Record<string, unknown>): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/operations/${operationId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async archiveFleetOperation(operationId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/fleet/operations/${operationId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();

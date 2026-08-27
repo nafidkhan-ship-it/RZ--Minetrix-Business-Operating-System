@@ -234,7 +234,23 @@ export class DatabaseStore {
       { id: 'p38', code: 'fleet:driver:view', module: 'Fleet', action: 'view', description: 'View fleet driver master' },
       { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
       { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
-      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' }
+      { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' },
+      { id: 'p42', code: 'fleet:document:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle documents' },
+      { id: 'p43', code: 'fleet:document:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicle documents' },
+      { id: 'p44', code: 'fleet:document:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicle documents' },
+      { id: 'p45', code: 'fleet:document:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicle documents' },
+      { id: 'p46', code: 'fleet:maintenance:view', module: 'Fleet', action: 'view', description: 'View fleet maintenance records' },
+      { id: 'p47', code: 'fleet:maintenance:create', module: 'Fleet', action: 'create', description: 'Create fleet maintenance records' },
+      { id: 'p48', code: 'fleet:maintenance:update', module: 'Fleet', action: 'update', description: 'Update fleet maintenance records' },
+      { id: 'p49', code: 'fleet:maintenance:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet maintenance records' },
+      { id: 'p50', code: 'fleet:fuel:view', module: 'Fleet', action: 'view', description: 'View fleet fuel records' },
+      { id: 'p51', code: 'fleet:fuel:create', module: 'Fleet', action: 'create', description: 'Create fleet fuel records' },
+      { id: 'p52', code: 'fleet:fuel:update', module: 'Fleet', action: 'update', description: 'Update fleet fuel records' },
+      { id: 'p53', code: 'fleet:fuel:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet fuel records' },
+      { id: 'p54', code: 'fleet:operation:view', module: 'Fleet', action: 'view', description: 'View fleet operations' },
+      { id: 'p55', code: 'fleet:operation:create', module: 'Fleet', action: 'create', description: 'Create fleet operations' },
+      { id: 'p56', code: 'fleet:operation:update', module: 'Fleet', action: 'update', description: 'Update fleet operations' },
+      { id: 'p57', code: 'fleet:operation:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet operations' }
     ];
     for (const permission of catalog) {
       const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
@@ -263,6 +279,10 @@ export class DatabaseStore {
     if (quarryRole) {
       grant(quarryRole.id, 'fleet:vehicle:view');
       grant(quarryRole.id, 'fleet:driver:view');
+      grant(quarryRole.id, 'fleet:document:view');
+      grant(quarryRole.id, 'fleet:maintenance:view');
+      grant(quarryRole.id, 'fleet:fuel:view');
+      grant(quarryRole.id, 'fleet:operation:view');
     }
   }
 
@@ -388,6 +408,22 @@ export class DatabaseStore {
       { id: 'p39', code: 'fleet:driver:create', module: 'Fleet', action: 'create', description: 'Create fleet drivers' },
       { id: 'p40', code: 'fleet:driver:update', module: 'Fleet', action: 'update', description: 'Update fleet drivers' },
       { id: 'p41', code: 'fleet:driver:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet drivers' },
+      { id: 'p42', code: 'fleet:document:view', module: 'Fleet', action: 'view', description: 'View fleet vehicle documents' },
+      { id: 'p43', code: 'fleet:document:create', module: 'Fleet', action: 'create', description: 'Create fleet vehicle documents' },
+      { id: 'p44', code: 'fleet:document:update', module: 'Fleet', action: 'update', description: 'Update fleet vehicle documents' },
+      { id: 'p45', code: 'fleet:document:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet vehicle documents' },
+      { id: 'p46', code: 'fleet:maintenance:view', module: 'Fleet', action: 'view', description: 'View fleet maintenance records' },
+      { id: 'p47', code: 'fleet:maintenance:create', module: 'Fleet', action: 'create', description: 'Create fleet maintenance records' },
+      { id: 'p48', code: 'fleet:maintenance:update', module: 'Fleet', action: 'update', description: 'Update fleet maintenance records' },
+      { id: 'p49', code: 'fleet:maintenance:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet maintenance records' },
+      { id: 'p50', code: 'fleet:fuel:view', module: 'Fleet', action: 'view', description: 'View fleet fuel records' },
+      { id: 'p51', code: 'fleet:fuel:create', module: 'Fleet', action: 'create', description: 'Create fleet fuel records' },
+      { id: 'p52', code: 'fleet:fuel:update', module: 'Fleet', action: 'update', description: 'Update fleet fuel records' },
+      { id: 'p53', code: 'fleet:fuel:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet fuel records' },
+      { id: 'p54', code: 'fleet:operation:view', module: 'Fleet', action: 'view', description: 'View fleet operations' },
+      { id: 'p55', code: 'fleet:operation:create', module: 'Fleet', action: 'create', description: 'Create fleet operations' },
+      { id: 'p56', code: 'fleet:operation:update', module: 'Fleet', action: 'update', description: 'Update fleet operations' },
+      { id: 'p57', code: 'fleet:operation:archive', module: 'Fleet', action: 'archive', description: 'Archive fleet operations' },
       { id: 'p5', code: 'finance:invoice:approve', module: 'Finance', action: 'approve', description: 'Approve Finance Invoices' },
       { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
       { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
