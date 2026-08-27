@@ -227,6 +227,33 @@ export async function runPostgresRlsIntegrationTests(): Promise<{
     record('Pooled connection has no retained tenant context after transaction ends', false, error.message);
   }
 
+  try {
+    const leadId = `lead-rls-${Date.now()}`;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      await client.query(
+        `INSERT INTO erp_leads (id, tenant_id, code, company_name) VALUES ($1,$2,$3,$4)`,
+        [leadId, TENANT_A, `RLS-${Date.now().toString().slice(-6)}`, 'RLS Lead Co']
+      );
+    });
+    let otherTenantRows = -1;
+    await withTenantTransaction(TENANT_B, async (client) => {
+      const result = await client.query(`SELECT id FROM erp_leads WHERE id = $1`, [leadId]);
+      otherTenantRows = result.rowCount ?? result.rows.length;
+    });
+    let ownRows = -1;
+    await withTenantTransaction(TENANT_A, async (client) => {
+      const result = await client.query(`SELECT id FROM erp_leads WHERE id = $1`, [leadId]);
+      ownRows = result.rowCount ?? result.rows.length;
+    });
+    record(
+      'CRM leads RLS hides rows from other tenant',
+      otherTenantRows === 0 && ownRows === 1,
+      `own=${ownRows} other=${otherTenantRows}`
+    );
+  } catch (error: any) {
+    record('CRM leads RLS hides rows from other tenant', false, error.message);
+  }
+
   // Cleanup test rows
   try {
     await deleteCompanyCrossTenantAttempt(TENANT_A, COMPANY_A);

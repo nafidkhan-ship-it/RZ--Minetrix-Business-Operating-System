@@ -399,6 +399,14 @@ erpOperationsRouter.get('/customers/:id/history', ...authViewCrm, validateResour
   }
 });
 
+erpOperationsRouter.get('/customers/:id', ...authViewCrm, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  try {
+    return res.json({ success: true, data: await erp.getCustomer(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleErpError(error, res);
+  }
+});
+
 erpOperationsRouter.get('/leads', ...authViewCrm, async (req: CustomRequest, res: Response) => {
   try {
     return res.json({ success: true, data: await erp.listLeads(req.user!.tenantId) });

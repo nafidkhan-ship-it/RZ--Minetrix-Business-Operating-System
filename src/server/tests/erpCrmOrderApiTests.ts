@@ -53,6 +53,32 @@ export async function runErpCrmOrderApiTests() {
   });
 
   const customerId = converted.body?.data?.convertedCustomerId as string;
+  const listedCustomers = await request(app).get('/api/v1/erp/customers').set(ctx.header);
+  results.push({
+    testName: 'GET customers lists converted customer',
+    passed:
+      listedCustomers.status === 200 &&
+      Array.isArray(listedCustomers.body?.data) &&
+      listedCustomers.body.data.some((row: { id: string }) => row.id === customerId),
+    message: `status=${listedCustomers.status}`
+  });
+
+  const retrieved = await request(app).get(`/api/v1/erp/customers/${customerId}`).set(ctx.header);
+  results.push({
+    testName: 'GET customer by id returns account',
+    passed: retrieved.status === 200 && retrieved.body?.data?.id === customerId && retrieved.body?.data?.name === 'UAT Builders',
+    message: `status=${retrieved.status}`
+  });
+
+  const listedLeads = await request(app).get('/api/v1/erp/leads').set(ctx.header);
+  results.push({
+    testName: 'GET leads returns converted lead',
+    passed:
+      listedLeads.status === 200 &&
+      Array.isArray(listedLeads.body?.data) &&
+      listedLeads.body.data.some((row: { id: string }) => row.id === lead.body.data.id),
+    message: `status=${listedLeads.status}`
+  });
   const contact = await request(app).post('/api/v1/erp/contacts').set(ctx.header).send({
     customerId,
     fullName: 'Accounts Desk',
@@ -209,6 +235,73 @@ export async function runErpCrmOrderApiTests() {
     testName: 'Order create rejects client tenantId',
     passed: spoof.status === 400,
     message: `status=${spoof.status}`
+  });
+
+  const missingCustomer = await request(app).post('/api/v1/erp/orders').set(ctx.header).send({
+    orderNumber: uniqueCode('SOM'),
+    customerId: 'missing-customer-id',
+    quarryId: quarry.body.data.id,
+    lines: [{ productId: product.body.data.id, quantity: 1, unitPrice: 10 }]
+  });
+  results.push({
+    testName: 'Order rejects unknown customer',
+    passed: missingCustomer.status === 404,
+    message: `status=${missingCustomer.status} error=${missingCustomer.body?.error}`
+  });
+
+  const missingProduct = await request(app).post('/api/v1/erp/orders').set(ctx.header).send({
+    orderNumber: uniqueCode('SOP'),
+    customerId,
+    quarryId: quarry.body.data.id,
+    lines: [{ productId: 'missing-product-id', quantity: 1, unitPrice: 10 }]
+  });
+  results.push({
+    testName: 'Order rejects unknown product',
+    passed: missingProduct.status === 404,
+    message: `status=${missingProduct.status} error=${missingProduct.body?.error}`
+  });
+
+  const badQty = await request(app).post('/api/v1/erp/orders').set(ctx.header).send({
+    orderNumber: uniqueCode('SOQ'),
+    customerId,
+    quarryId: quarry.body.data.id,
+    lines: [{ productId: product.body.data.id, quantity: 0, unitPrice: 10 }]
+  });
+  results.push({
+    testName: 'Order rejects non-positive quantity',
+    passed: badQty.status === 400,
+    message: `status=${badQty.status}`
+  });
+
+  const duplicateOrder = await request(app).post('/api/v1/erp/orders').set(ctx.header).send({
+    orderNumber: draftOrder.body.data.orderNumber,
+    customerId,
+    quarryId: quarry.body.data.id,
+    lines: [{ productId: product.body.data.id, quantity: 1, unitPrice: 10 }]
+  });
+  results.push({
+    testName: 'Duplicate order number is rejected',
+    passed: duplicateOrder.status === 409 && duplicateOrder.body?.error === 'DUPLICATE_ORDER_NUMBER',
+    message: `status=${duplicateOrder.status} error=${duplicateOrder.body?.error}`
+  });
+
+  const isolatedCustomer = await request(app).get(`/api/v1/erp/customers/${customerId}`).set(other.header);
+  results.push({
+    testName: 'Other tenant cannot read customer',
+    passed: isolatedCustomer.status === 404 || isolatedCustomer.status === 403 || isolatedCustomer.status === 401,
+    message: `status=${isolatedCustomer.status}`
+  });
+
+  const audit = await request(app).get('/api/v1/audit/search').set(ctx.header);
+  results.push({
+    testName: 'Audit trail records CRM/order mutations',
+    passed:
+      audit.status === 200 &&
+      Array.isArray(audit.body?.data) &&
+      audit.body.data.some((row: { action?: string; resource?: string }) =>
+        String(row.resource || row.action || '').includes('/erp/')
+      ),
+    message: `status=${audit.status} rows=${Array.isArray(audit.body?.data) ? audit.body.data.length : 0}`
   });
 
   const passedCount = results.filter((result) => result.passed).length;

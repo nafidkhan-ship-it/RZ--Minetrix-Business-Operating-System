@@ -135,6 +135,13 @@ export class ErpOperationsService {
     return this.catalog.listCustomers(tenantId);
   }
 
+  async getCustomer(tenantId: string, customerId: string) {
+    this.ensurePostgres();
+    const customer = await this.catalog.findCustomer(tenantId, customerId);
+    if (!customer) throw new ErpServiceError('NOT_FOUND', 'Customer not found.', 404);
+    return customer;
+  }
+
   async createProductionBatch(
     tenantId: string,
     input: {
@@ -323,6 +330,10 @@ export class ErpOperationsService {
     if (!quarry) throw new ErpServiceError('NOT_FOUND', 'Quarry not found.', 404);
     const customer = await this.catalog.findCustomer(tenantId, input.customerId);
     if (!customer) throw new ErpServiceError('NOT_FOUND', 'Customer not found.', 404);
+    for (const line of input.lines) {
+      const product = await this.catalog.findProduct(tenantId, line.productId);
+      if (!product) throw new ErpServiceError('NOT_FOUND', 'Product not found.', 404);
+    }
     try {
       return await this.crm.createOrder(tenantId, input);
     } catch (error) {

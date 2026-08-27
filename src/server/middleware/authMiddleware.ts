@@ -178,21 +178,22 @@ export function requirePermission(permissionCode: string) {
 
 // 5. Automatic State Mutation Audit Logger Middleware
 export function auditLogger(req: CustomRequest, res: Response, next: NextFunction) {
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && req.user) {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     res.on('finish', () => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        auditRepo.log({
-          tenantId: req.user!.tenantId,
-          actorUserId: req.user!.userId,
-          actorEmail: req.user!.email,
-          action: `API_${req.method}_MUTATION`,
-          module: 'Shared Core API Gateway',
-          resource: req.originalUrl,
-          ipAddress: req.ip || '127.0.0.1',
-          correlationId: req.correlationId || generateUuidV7(),
-          status: 'SUCCESS'
-        });
+      if (!req.user || res.statusCode < 200 || res.statusCode >= 300) {
+        return;
       }
+      auditRepo.log({
+        tenantId: req.user.tenantId,
+        actorUserId: req.user.userId,
+        actorEmail: req.user.email,
+        action: `API_${req.method}_MUTATION`,
+        module: 'Shared Core API Gateway',
+        resource: req.originalUrl,
+        ipAddress: req.ip || '127.0.0.1',
+        correlationId: req.correlationId || generateUuidV7(),
+        status: 'SUCCESS'
+      });
     });
   }
   next();
