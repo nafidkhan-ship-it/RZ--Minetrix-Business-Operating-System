@@ -16,7 +16,18 @@ import {
 import { ErpServiceError, isUniqueViolation } from '../services/erpErrors.js';
 
 function isoDate(value: unknown): string {
-  return String(value).slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return raw.slice(0, 10);
 }
 
 function iso(value: unknown): string | undefined {

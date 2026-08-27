@@ -92,6 +92,7 @@ export class DatabaseStore {
       const hasData = (parsed.tenants?.length || 0) > 0;
       if (hasData) {
         this.loadFromDump(parsed);
+        this.ensureHrmsPermissionCatalog();
         console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
         if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
           await syncRelationalTenantData({
@@ -101,6 +102,7 @@ export class DatabaseStore {
             auditLogs: parsed.auditLogs || []
           });
         }
+        await this.persistToDisk();
         this.initialized = true;
         return;
       }
@@ -159,6 +161,65 @@ export class DatabaseStore {
       await this.persistenceAdapter.saveAll(dump);
     } catch (err) {
       console.error('[DB] Error persisting database state:', err);
+    }
+  }
+
+  /** Additive RBAC catalog so existing persisted snapshots pick up new HRMS permissions. */
+  private ensureHrmsPermissionCatalog(): void {
+    const catalog: Permission[] = [
+      { id: 'p6', code: 'hrms:employee:view', module: 'HRMS', action: 'view', description: 'View HR Employee Master' },
+      { id: 'p25', code: 'hrms:employee:create', module: 'HRMS', action: 'create', description: 'Create employee master records' },
+      { id: 'p26', code: 'hrms:employee:update', module: 'HRMS', action: 'update', description: 'Update or archive employees' },
+      { id: 'p27', code: 'hrms:attendance:view', module: 'HRMS', action: 'view', description: 'View attendance' },
+      { id: 'p28', code: 'hrms:attendance:create', module: 'HRMS', action: 'create', description: 'Record attendance' },
+      { id: 'p29', code: 'hrms:leave:view', module: 'HRMS', action: 'view', description: 'View leave requests' },
+      { id: 'p30', code: 'hrms:leave:create', module: 'HRMS', action: 'create', description: 'Request leave' },
+      { id: 'p31', code: 'hrms:leave:approve', module: 'HRMS', action: 'approve', description: 'Approve or reject leave' },
+      { id: 'p32', code: 'hrms:payroll:view', module: 'HRMS', action: 'view', description: 'View payroll (sensitive)' },
+      { id: 'p33', code: 'hrms:payroll:create', module: 'HRMS', action: 'create', description: 'Run payroll (sensitive)' }
+    ];
+
+    for (const permission of catalog) {
+      const existing = Array.from(this.permissions.values()).find((item) => item.code === permission.code);
+      if (!existing) {
+        this.permissions.set(permission.id, permission);
+      }
+    }
+
+    const adminRole = Array.from(this.roles.values()).find((role) => role.code === 'SUPER_ADMIN');
+    const quarryRole = Array.from(this.roles.values()).find((role) => role.code === 'QUARRY_MANAGER');
+    const grant = (roleId: string, permissionCode: string) => {
+      const permission = Array.from(this.permissions.values()).find((item) => item.code === permissionCode);
+      if (!permission) return;
+      const already = Array.from(this.rolePermissions.values()).some(
+        (row) => row.roleId === roleId && (row.permissionId === permission.id || row.permissionCode === permission.code)
+      );
+      if (already) return;
+      const rpId = generateUuidV7();
+      this.rolePermissions.set(rpId, {
+        id: rpId,
+        roleId,
+        permissionId: permission.id,
+        permissionCode: permission.code
+      });
+    };
+
+    if (adminRole) {
+      for (const permission of catalog) grant(adminRole.id, permission.code);
+    }
+    if (quarryRole) {
+      for (const code of [
+        'hrms:employee:view',
+        'hrms:employee:create',
+        'hrms:employee:update',
+        'hrms:attendance:view',
+        'hrms:attendance:create',
+        'hrms:leave:view',
+        'hrms:leave:create',
+        'hrms:leave:approve'
+      ]) {
+        grant(quarryRole.id, code);
+      }
     }
   }
 

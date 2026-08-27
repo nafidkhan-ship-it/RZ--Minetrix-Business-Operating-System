@@ -525,6 +525,178 @@ class SharedCoreApiClient {
       return { success: false, error: 'NETWORK_ERROR', message: err.message };
     }
   }
+
+  public async listHrmsPayStructures(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/pay-structures', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createHrmsPayStructure(payload: {
+    code: string;
+    name: string;
+    basicSalary: number;
+    allowanceAmount?: number;
+    pfPercent?: number;
+    otherDeductionAmount?: number;
+    overtimeRatePerHour?: number;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/pay-structures', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listHrmsEmployees(search?: string): Promise<ApiResponse> {
+    try {
+      const query = search ? `?search=${encodeURIComponent(search)}` : '';
+      const res = await fetch(`/api/v1/hrms/employees${query}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createHrmsEmployee(payload: {
+    code: string;
+    fullName: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    joiningDate: string;
+    department: string;
+    designation: string;
+    payStructureId?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/employees', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listHrmsAttendance(employeeId?: string): Promise<ApiResponse> {
+    try {
+      const query = employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : '';
+      const res = await fetch(`/api/v1/hrms/attendance${query}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createHrmsAttendance(payload: {
+    employeeId: string;
+    workDate: string;
+    status: string;
+    checkIn?: string;
+    checkOut?: string;
+    overtimeHours?: number;
+    remarks?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/attendance', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listHrmsLeaveRequests(employeeId?: string): Promise<ApiResponse> {
+    try {
+      const query = employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : '';
+      const res = await fetch(`/api/v1/hrms/leave-requests${query}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createHrmsLeaveRequest(payload: {
+    employeeId: string;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/leave-requests', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async approveHrmsLeave(leaveId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/hrms/leave-requests/${leaveId}/approve`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async rejectHrmsLeave(leaveId: string): Promise<ApiResponse> {
+    try {
+      const res = await fetch(`/api/v1/hrms/leave-requests/${leaveId}/reject`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async listHrmsPayroll(employeeId?: string): Promise<ApiResponse> {
+    try {
+      const query = employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : '';
+      const res = await fetch(`/api/v1/hrms/payroll${query}`, { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
+  public async createHrmsPayroll(payload: { employeeId: string; periodYear: number; periodMonth: number }): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/hrms/payroll', {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
 }
 
 export const apiClient = new SharedCoreApiClient();
