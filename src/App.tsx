@@ -51,8 +51,14 @@ import { BlueprintDocModal } from './components/BlueprintDocModal';
 import { BrandingAssetExporterModal } from './components/BrandingAssetExporterModal';
 import { brandingService } from './services/brandingService';
 
+function sectionFromHash(): SectionId | null {
+  if (typeof window === 'undefined') return null;
+  const id = window.location.hash.replace(/^#/, '').trim();
+  return id ? (id as SectionId) : null;
+}
+
 export default function App() {
-  const [activeSection, setActiveSection] = useState<SectionId>('overview');
+  const [activeSection, setActiveSection] = useState<SectionId>(() => sectionFromHash() || 'overview');
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
 
@@ -60,12 +66,28 @@ export default function App() {
     brandingService.initializeGlobalTheme();
   }, []);
 
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashed = sectionFromHash();
+      if (hashed) setActiveSection(hashed);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const selectSection = (section: SectionId) => {
+    setActiveSection(section);
+    if (window.location.hash !== `#${section}`) {
+      window.location.hash = section;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
       {/* Header Bar & Navigation */}
       <Header
         activeSection={activeSection}
-        setActiveSection={setActiveSection}
+        setActiveSection={selectSection}
         onOpenDocModal={() => setIsDocModalOpen(true)}
         onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
       />
