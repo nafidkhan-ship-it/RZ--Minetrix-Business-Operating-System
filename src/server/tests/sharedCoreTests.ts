@@ -34,16 +34,19 @@ export async function runSharedCoreTestSuite(): Promise<{
   {
     const start = Date.now();
     try {
-      const loginRes = await authService.login('admin@racezoneventures.com', 'AdminPass2026!', '127.0.0.1');
-      const verified = loginRes.data?.token ? jwtService.verifyToken(loginRes.data.token) : null;
-      const passed = loginRes.success && !!loginRes.data?.token && !!verified && verified.iss === 'rz-minetrix-bos';
+      const loginRes = await authService.login(
+        'admin@racezoneventures.com',
+        process.env.RZ_BOOTSTRAP_ADMIN_PASSWORD || '',
+        '127.0.0.1'
+      );
+      const passed = !loginRes.success && loginRes.error === 'MFA_REQUIRED';
       results.push({
-        testName: 'Authentication Engine - RS256 Asymmetric JWT Signing & Claims Verification',
+        testName: 'Authentication Engine - MFA Enforcement',
         category: 'Security & Auth',
         passed,
         durationMs: Date.now() - start,
-        message: passed ? 'Successfully issued and verified RS256 asymmetric token (kid: rz-rsa-key-2026-v1, iss: rz-minetrix-bos)' : 'Failed RS256 token verification',
-        evidence: { keyMetadata: jwtService.getKeyMetadata(), claims: verified }
+        message: passed ? 'MFA-enabled admin login correctly requires a second factor.' : 'MFA enforcement failed',
+        evidence: { keyMetadata: jwtService.getKeyMetadata(), error: loginRes.error }
       });
     } catch (err: any) {
       results.push({
