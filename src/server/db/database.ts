@@ -35,6 +35,10 @@ export function hashPassword(password: string, salt?: string): { hash: string; s
   return { hash, salt: finalSalt };
 }
 
+function getBootstrapPassword(environmentVariable: string): string {
+  return process.env[environmentVariable] || crypto.randomBytes(32).toString('base64url');
+}
+
 // In-Memory Database Store with Persistence Abstraction Layer
 export class DatabaseStore {
   public tenants: Map<string, Tenant> = new Map();
@@ -276,7 +280,7 @@ export class DatabaseStore {
     });
 
     // 6. Users
-    const passwordResult = hashPassword('AdminPass2026!');
+    const passwordResult = hashPassword(getBootstrapPassword('RZ_BOOTSTRAP_ADMIN_PASSWORD'));
     const userAdmin: User = {
       id: 'usr-admin-001',
       tenantId: tenant1.id,
@@ -297,7 +301,7 @@ export class DatabaseStore {
       version: 1
     };
 
-    const userManagerPass = hashPassword('ManagerPass2026!');
+    const userManagerPass = hashPassword(getBootstrapPassword('RZ_BOOTSTRAP_MANAGER_PASSWORD'));
     const userManager: User = {
       id: 'usr-quarry-mgr-002',
       tenantId: tenant1.id,
@@ -320,7 +324,7 @@ export class DatabaseStore {
     };
 
     // User for Tenant 2 (Apex)
-    const userApexPass = hashPassword('ApexPass2026!');
+    const userApexPass = hashPassword(getBootstrapPassword('RZ_BOOTSTRAP_APEX_PASSWORD'));
     const userApex: User = {
       id: 'usr-apex-mgr-003',
       tenantId: tenant2.id,
