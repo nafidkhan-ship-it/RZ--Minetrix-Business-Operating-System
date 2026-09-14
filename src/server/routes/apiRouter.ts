@@ -158,7 +158,7 @@ apiRouter.get('/roles', authenticateJwt, enforceTenantContext, async (req: Custo
 });
 
 apiRouter.get('/permissions', authenticateJwt, async (req: CustomRequest, res: Response) => {
-  const permissions = Array.from(db.permissions.values());
+  const permissions = await rolePermRepo.findAllPermissions();
   return res.json({ success: true, data: permissions });
 });
 

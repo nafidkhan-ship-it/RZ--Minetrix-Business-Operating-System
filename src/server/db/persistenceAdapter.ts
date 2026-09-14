@@ -42,6 +42,15 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
     this.client = drizzle(this.pool, { schema });
   }
   isLivePostgresConnected() { return true; }
+  async setTenantContext(tenantId: string) {
+    await this.pool.query('select set_config($1, $2, false)', ['app.current_tenant_id', tenantId]);
+  }
+  async select(table: any, where?: any) {
+    const query = this.client.select().from(table);
+    return (where ? query.where(where) : query) as any;
+  }
+  async insert(table: any, values: any) { return this.client.insert(table).values(values).returning() as any; }
+  async update(table: any, values: any, where: any) { return this.client.update(table).set(values).where(where).returning() as any; }
   async loadAll(): Promise<DatabaseTables> {
     const [tenants, companies, branches, businessUnits, users, roles, permissions, userRoles, rolePermissions, masterData, documents, notifications, auditLogs, workflowDefinitions, workflowInstances, workflowActions] = await Promise.all([
       this.client.select().from(tables.tenants), this.client.select().from(tables.companies), this.client.select().from(tables.branches), this.client.select().from(tables.businessUnits), this.client.select().from(tables.users), this.client.select().from(tables.roles), this.client.select().from(tables.permissions), this.client.select().from(tables.userRoles), this.client.select().from(tables.rolePermissions), this.client.select().from(tables.masterData), this.client.select().from(tables.documents), this.client.select().from(tables.notifications), this.client.select().from(tables.auditLogs), this.client.select().from(tables.workflowDefinitions), this.client.select().from(tables.workflowInstances), this.client.select().from(tables.workflowActions)
