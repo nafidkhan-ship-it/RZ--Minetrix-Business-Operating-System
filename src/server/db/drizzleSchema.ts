@@ -1,119 +1,25 @@
-/**
- * RZ® Minetrix BOS - Drizzle ORM Database Schema (Phase 16 Hardening)
- * Compatible with PostgreSQL 14+ / Supabase / Cloud SQL
- */
+import { sql } from 'drizzle-orm';
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 
-export const DRIZZLE_TABLE_NAMES = {
-  TENANTS: 'core_tenants',
-  COMPANIES: 'core_companies',
-  BRANCHES: 'core_branches',
-  BUSINESS_UNITS: 'core_business_units',
-  USERS: 'core_users',
-  ROLES: 'core_roles',
-  PERMISSIONS: 'core_permissions',
-  USER_ROLES: 'core_user_roles',
-  ROLE_PERMISSIONS: 'core_role_permissions',
-  MASTER_DATA: 'core_master_data',
-  DOCUMENTS: 'core_documents',
-  NOTIFICATIONS: 'core_notifications',
-  AUDIT_LOGS: 'core_audit_logs',
-  WORKFLOW_DEFINITIONS: 'core_workflow_definitions',
-  WORKFLOW_INSTANCES: 'core_workflow_instances',
-  WORKFLOW_ACTIONS: 'core_workflow_actions'
-} as const;
+const audit = { createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(), version: integer('version').default(1).notNull() };
+const tenant = (name: string) => uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' });
 
-export interface DrizzleTableDefinition {
-  tableName: string;
-  columns: Record<string, { type: string; nullable?: boolean; primaryKey?: boolean; default?: string }>;
-  indexes: string[];
-  foreignKeys: string[];
-}
+export const tenants = pgTable('tenants', { id: uuid('id').defaultRandom().primaryKey(), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), domain: varchar('domain', { length: 255 }).notNull(), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), tier: varchar('tier', { length: 32 }).notNull().default('STANDARD'), settingsJson: jsonb('settings_json').notNull().default({}), ...audit }, t => [uniqueIndex('tenants_code_uq').on(t.code), uniqueIndex('tenants_domain_uq').on(t.domain)]);
+export const companies = pgTable('companies', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('companies'), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), taxId: varchar('tax_id', { length: 64 }).notNull(), currency: varchar('currency', { length: 10 }).notNull().default('USD'), country: varchar('country', { length: 100 }).notNull(), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), deletedAt: timestamp('deleted_at', { withTimezone: true }), ...audit }, t => [uniqueIndex('companies_tenant_code_uq').on(t.tenantId, t.code), index('companies_tenant_idx').on(t.tenantId)]);
+export const branches = pgTable('branches', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('branches'), companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'restrict' }), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), locationType: varchar('location_type', { length: 32 }).notNull(), address: text('address').notNull().default(''), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), deletedAt: timestamp('deleted_at', { withTimezone: true }), ...audit }, t => [uniqueIndex('branches_tenant_code_uq').on(t.tenantId, t.code), index('branches_tenant_idx').on(t.tenantId)]);
+export const businessUnits = pgTable('business_units', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('business_units'), companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'restrict' }), branchId: uuid('branch_id').references(() => branches.id, { onDelete: 'set null' }), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), unitType: varchar('unit_type', { length: 32 }).notNull(), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), deletedAt: timestamp('deleted_at', { withTimezone: true }), ...audit }, t => [uniqueIndex('business_units_tenant_code_uq').on(t.tenantId, t.code)]);
+export const users = pgTable('users', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('users'), companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'restrict' }), branchId: uuid('branch_id').references(() => branches.id, { onDelete: 'set null' }), email: varchar('email', { length: 255 }).notNull(), passwordHash: text('password_hash').notNull(), salt: varchar('salt', { length: 128 }).notNull(), fullName: varchar('full_name', { length: 255 }).notNull(), phone: varchar('phone', { length: 64 }), department: varchar('department', { length: 128 }).notNull(), designation: varchar('designation', { length: 128 }).notNull(), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), isMfaEnabled: boolean('is_mfa_enabled').notNull().default(false), linkedEmployeeId: varchar('linked_employee_id', { length: 64 }), linkedDriverId: varchar('linked_driver_id', { length: 64 }), linkedOperatorId: varchar('linked_operator_id', { length: 64 }), lastLoginAt: timestamp('last_login_at', { withTimezone: true }), deletedAt: timestamp('deleted_at', { withTimezone: true }), ...audit }, t => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email), index('users_tenant_idx').on(t.tenantId)]);
+export const roles = pgTable('roles', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('roles'), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), description: text('description').notNull().default(''), isSystemRole: boolean('is_system_role').notNull().default(false), ...audit }, t => [uniqueIndex('roles_tenant_code_uq').on(t.tenantId, t.code)]);
+export const permissions = pgTable('permissions', { id: uuid('id').defaultRandom().primaryKey(), code: varchar('code', { length: 128 }).notNull().unique(), module: varchar('module', { length: 128 }).notNull(), action: varchar('action', { length: 64 }).notNull(), description: text('description').notNull().default('') });
+export const userRoles = pgTable('user_roles', { id: uuid('id').defaultRandom().primaryKey(), userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }), roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }), tenantId: tenant('user_roles'), assignedAt: timestamp('assigned_at', { withTimezone: true }).defaultNow().notNull(), assignedBy: uuid('assigned_by') }, t => [uniqueIndex('user_roles_uq').on(t.userId, t.roleId), index('user_roles_tenant_idx').on(t.tenantId)]);
+export const rolePermissions = pgTable('role_permissions', { id: uuid('id').defaultRandom().primaryKey(), roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }), permissionId: uuid('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }), permissionCode: varchar('permission_code', { length: 128 }).notNull() }, t => [uniqueIndex('role_permissions_uq').on(t.roleId, t.permissionId)]);
+export const masterData = pgTable('master_data', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('master_data'), category: varchar('category', { length: 64 }).notNull(), code: varchar('code', { length: 64 }).notNull(), name: varchar('name', { length: 255 }).notNull(), valueJson: jsonb('value_json').notNull().default({}), status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), ...audit }, t => [uniqueIndex('master_data_tenant_code_uq').on(t.tenantId, t.category, t.code)]);
+export const documents = pgTable('documents', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('documents'), companyId: uuid('company_id').notNull().references(() => companies.id), module: varchar('module', { length: 128 }).notNull(), entityType: varchar('entity_type', { length: 128 }).notNull(), entityId: varchar('entity_id', { length: 128 }).notNull(), fileName: varchar('file_name', { length: 255 }).notNull(), fileSize: integer('file_size').notNull(), mimeType: varchar('mime_type', { length: 128 }).notNull(), storageKey: text('storage_key').notNull(), accessLevel: varchar('access_level', { length: 32 }).notNull(), uploaderUserId: uuid('uploader_user_id').notNull().references(() => users.id), deletedAt: timestamp('deleted_at', { withTimezone: true }), ...audit }, t => [index('documents_entity_idx').on(t.tenantId, t.entityType, t.entityId)]);
+export const notifications = pgTable('notifications', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('notifications'), recipientUserId: uuid('recipient_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }), title: varchar('title', { length: 255 }).notNull(), body: text('body').notNull(), type: varchar('type', { length: 32 }).notNull(), channel: varchar('channel', { length: 32 }).notNull(), isRead: boolean('is_read').notNull().default(false), readAt: timestamp('read_at', { withTimezone: true }), createdAt: audit.createdAt }, t => [index('notifications_recipient_idx').on(t.tenantId, t.recipientUserId)]);
+export const auditLogs = pgTable('audit_logs', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('audit_logs'), actorUserId: uuid('actor_user_id').notNull(), actorEmail: varchar('actor_email', { length: 255 }).notNull(), action: varchar('action', { length: 128 }).notNull(), module: varchar('module', { length: 128 }).notNull(), resource: text('resource').notNull(), resourceId: varchar('resource_id', { length: 128 }), ipAddress: varchar('ip_address', { length: 64 }).notNull(), correlationId: uuid('correlation_id').notNull(), beforeStateJson: jsonb('before_state_json'), afterStateJson: jsonb('after_state_json'), status: varchar('status', { length: 32 }).notNull(), createdAt: audit.createdAt }, t => [index('audit_logs_tenant_created_idx').on(t.tenantId, t.createdAt)]);
+export const workflowDefinitions = pgTable('workflow_definitions', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('workflow_definitions'), code: varchar('code', { length: 128 }).notNull(), name: varchar('name', { length: 255 }).notNull(), entityType: varchar('entity_type', { length: 128 }).notNull(), initialState: varchar('initial_state', { length: 64 }).notNull(), statesJson: jsonb('states_json').notNull(), transitionsJson: jsonb('transitions_json').notNull(), ...audit }, t => [uniqueIndex('workflow_definitions_tenant_code_uq').on(t.tenantId, t.code)]);
+export const workflowInstances = pgTable('workflow_instances', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('workflow_instances'), workflowDefinitionId: uuid('workflow_definition_id').notNull().references(() => workflowDefinitions.id), entityType: varchar('entity_type', { length: 128 }).notNull(), entityId: varchar('entity_id', { length: 128 }).notNull(), currentState: varchar('current_state', { length: 64 }).notNull(), initiatedByUserId: uuid('initiated_by_user_id').notNull().references(() => users.id), status: varchar('status', { length: 32 }).notNull().default('IN_PROGRESS'), ...audit });
+export const workflowActions = pgTable('workflow_actions', { id: uuid('id').defaultRandom().primaryKey(), tenantId: tenant('workflow_actions'), instanceId: uuid('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }), fromState: varchar('from_state', { length: 64 }).notNull(), toState: varchar('to_state', { length: 64 }).notNull(), actionName: varchar('action_name', { length: 128 }).notNull(), actorUserId: uuid('actor_user_id').notNull().references(() => users.id), comments: text('comments'), createdAt: audit.createdAt });
 
-export const DRIZZLE_SCHEMA_SPEC: Record<string, DrizzleTableDefinition> = {
-  tenants: {
-    tableName: DRIZZLE_TABLE_NAMES.TENANTS,
-    columns: {
-      id: { type: 'uuid', primaryKey: true, nullable: false },
-      code: { type: 'varchar(64)', nullable: false },
-      name: { type: 'varchar(255)', nullable: false },
-      domain: { type: 'varchar(255)', nullable: false },
-      status: { type: 'varchar(32)', nullable: false, default: "'ACTIVE'" },
-      tier: { type: 'varchar(32)', nullable: false, default: "'ENTERPRISE'" },
-      settings_json: { type: 'jsonb', nullable: false, default: "'{}'" },
-      created_at: { type: 'timestamp with time zone', nullable: false, default: 'NOW()' },
-      updated_at: { type: 'timestamp with time zone', nullable: false, default: 'NOW()' },
-      created_by: { type: 'uuid', nullable: true },
-      updated_by: { type: 'uuid', nullable: true },
-      deleted_at: { type: 'timestamp with time zone', nullable: true },
-      version: { type: 'integer', nullable: false, default: '1' }
-    },
-    indexes: ['idx_core_tenants_code', 'idx_core_tenants_domain'],
-    foreignKeys: []
-  },
-  companies: {
-    tableName: DRIZZLE_TABLE_NAMES.COMPANIES,
-    columns: {
-      id: { type: 'uuid', primaryKey: true, nullable: false },
-      tenant_id: { type: 'uuid', nullable: false },
-      code: { type: 'varchar(64)', nullable: false },
-      name: { type: 'varchar(255)', nullable: false },
-      tax_id: { type: 'varchar(64)', nullable: false },
-      currency: { type: 'varchar(10)', nullable: false, default: "'USD'" },
-      country: { type: 'varchar(100)', nullable: false, default: "'USA'" },
-      status: { type: 'varchar(32)', nullable: false, default: "'ACTIVE'" },
-      created_at: { type: 'timestamp with time zone', nullable: false },
-      updated_at: { type: 'timestamp with time zone', nullable: false },
-      version: { type: 'integer', nullable: false, default: '1' }
-    },
-    indexes: ['idx_core_companies_tenant', 'idx_core_companies_code'],
-    foreignKeys: ['FOREIGN KEY (tenant_id) REFERENCES core_tenants(id) ON DELETE CASCADE']
-  },
-  users: {
-    tableName: DRIZZLE_TABLE_NAMES.USERS,
-    columns: {
-      id: { type: 'uuid', primaryKey: true, nullable: false },
-      tenant_id: { type: 'uuid', nullable: false },
-      company_id: { type: 'uuid', nullable: false },
-      branch_id: { type: 'uuid', nullable: true },
-      email: { type: 'varchar(255)', nullable: false },
-      password_hash: { type: 'text', nullable: false },
-      salt: { type: 'varchar(128)', nullable: false },
-      full_name: { type: 'varchar(255)', nullable: false },
-      phone: { type: 'varchar(64)', nullable: true },
-      department: { type: 'varchar(128)', nullable: false },
-      designation: { type: 'varchar(128)', nullable: false },
-      status: { type: 'varchar(32)', nullable: false, default: "'ACTIVE'" },
-      is_mfa_enabled: { type: 'boolean', nullable: false, default: 'false' },
-      linked_employee_id: { type: 'varchar(64)', nullable: true },
-      linked_driver_id: { type: 'varchar(64)', nullable: true },
-      linked_operator_id: { type: 'varchar(64)', nullable: true },
-      created_at: { type: 'timestamp with time zone', nullable: false },
-      updated_at: { type: 'timestamp with time zone', nullable: false },
-      version: { type: 'integer', nullable: false, default: '1' }
-    },
-    indexes: ['idx_core_users_tenant', 'idx_core_users_email', 'idx_core_users_company'],
-    foreignKeys: [
-      'FOREIGN KEY (tenant_id) REFERENCES core_tenants(id) ON DELETE CASCADE',
-      'FOREIGN KEY (company_id) REFERENCES core_companies(id) ON DELETE RESTRICT'
-    ]
-  },
-  audit_logs: {
-    tableName: DRIZZLE_TABLE_NAMES.AUDIT_LOGS,
-    columns: {
-      id: { type: 'uuid', primaryKey: true, nullable: false },
-      tenant_id: { type: 'uuid', nullable: false },
-      actor_user_id: { type: 'uuid', nullable: false },
-      actor_email: { type: 'varchar(255)', nullable: false },
-      action: { type: 'varchar(128)', nullable: false },
-      module: { type: 'varchar(128)', nullable: false },
-      resource: { type: 'text', nullable: false },
-      resource_id: { type: 'varchar(128)', nullable: true },
-      ip_address: { type: 'varchar(64)', nullable: false },
-      correlation_id: { type: 'uuid', nullable: false },
-      status: { type: 'varchar(32)', nullable: false },
-      created_at: { type: 'timestamp with time zone', nullable: false, default: 'NOW()' }
-    },
-    indexes: ['idx_core_audit_tenant', 'idx_core_audit_actor', 'idx_core_audit_created_at'],
-    foreignKeys: ['FOREIGN KEY (tenant_id) REFERENCES core_tenants(id) ON DELETE CASCADE']
-  }
-};
+export const schema = { tenants, companies, branches, businessUnits, users, roles, permissions, userRoles, rolePermissions, masterData, documents, notifications, auditLogs, workflowDefinitions, workflowInstances, workflowActions };
+export const tenantRls = sql`current_setting('app.current_tenant_id', true)`;

@@ -55,8 +55,8 @@ apiRouter.get('/health/liveness', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
-  const isDbReady = db.tenants.size > 0;
   const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
+  const isDbReady = adapterStatus.status === 'CONNECTED' || adapterStatus.status === 'ACTIVE_LOCAL';
   const jwtMeta = jwtService.getKeyMetadata();
 
   res.json({

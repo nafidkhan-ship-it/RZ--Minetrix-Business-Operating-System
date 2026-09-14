@@ -9,7 +9,11 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "tsx src/server/db/migrate.ts",
+    "db:seed": "tsx src/server/db/seed.ts",
+    "test:db": "tsx src/server/tests/databaseTests.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -22,6 +26,8 @@
     "express": "^4.21.2",
     "dotenv": "^17.2.3",
     "motion": "^12.23.24"
+    ,"drizzle-orm": "^0.44.5"
+    ,"pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
@@ -31,6 +37,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
-    "@types/express": "^4.17.21"
+    "@types/express": "^4.17.21",
+    "drizzle-kit": "^0.31.4",
+    "@types/pg": "^8.15.5"
   }
 }
