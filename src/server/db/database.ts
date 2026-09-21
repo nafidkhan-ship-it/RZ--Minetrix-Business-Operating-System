@@ -59,19 +59,27 @@ export class DatabaseStore {
   public workflowActions: Map<string, WorkflowAction> = new Map();
 
   public persistenceAdapter: IPersistenceAdapter;
+  public readonly ready: Promise<void>;
   private storageFilePath: string;
 
   constructor() {
     this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
-    if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
+    if (process.env.DB_ADAPTER === 'local-json') {
+      this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);
+    } else if (process.env.DATABASE_URL) {
       this.persistenceAdapter = new PostgresPersistenceAdapter();
     } else {
-      this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);
+      throw new Error('DATABASE_URL is required. Set DB_ADAPTER=local-json only for an explicit development/test adapter.');
     }
-    this.initializeAndSeed();
+    this.ready = this.initializeAndSeed();
   }
 
-  private initializeAndSeed() {
+  private async initializeAndSeed() {
+    if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
+      const loaded = await this.persistenceAdapter.loadAll();
+      this.loadFromDump(loaded);
+      return;
+    }
     // Ensure directory exists
     const dir = path.dirname(this.storageFilePath);
     if (!fs.existsSync(dir)) {
@@ -115,6 +123,10 @@ export class DatabaseStore {
 
   public persistToDisk() {
     try {
+      if (this.persistenceAdapter.providerName === 'POSTGRES_DRIZZLE') {
+        void this.persistenceAdapter.saveAll(this.toTables());
+        return;
+      }
       const dump = {
         tenants: Array.from(this.tenants.values()),
         companies: Array.from(this.companies.values()),
@@ -137,6 +149,10 @@ export class DatabaseStore {
     } catch (err) {
       console.error('[DB] Error persisting database to disk:', err);
     }
+  }
+
+  private toTables(): DatabaseTables {
+    return { tenants: Array.from(this.tenants.values()), companies: Array.from(this.companies.values()), branches: Array.from(this.branches.values()), businessUnits: Array.from(this.businessUnits.values()), users: Array.from(this.users.values()), roles: Array.from(this.roles.values()), permissions: Array.from(this.permissions.values()), userRoles: Array.from(this.userRoles.values()), rolePermissions: Array.from(this.rolePermissions.values()), masterData: Array.from(this.masterData.values()), documents: Array.from(this.documents.values()), notifications: Array.from(this.notifications.values()), auditLogs: Array.from(this.auditLogs.values()), workflowDefinitions: Array.from(this.workflowDefinitions.values()), workflowInstances: Array.from(this.workflowInstances.values()), workflowActions: Array.from(this.workflowActions.values()) };
   }
 
   private seedDefaultEnterpriseData() {

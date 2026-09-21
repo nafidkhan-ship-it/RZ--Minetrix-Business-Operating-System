@@ -55,8 +55,8 @@ apiRouter.get('/health/liveness', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
-  const isDbReady = db.tenants.size > 0;
   const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
+  const isDbReady = adapterStatus.status === 'CONNECTED' || adapterStatus.status === 'ACTIVE_LOCAL';
   const jwtMeta = jwtService.getKeyMetadata();
 
   res.json({
@@ -158,7 +158,7 @@ apiRouter.get('/roles', authenticateJwt, enforceTenantContext, async (req: Custo
 });
 
 apiRouter.get('/permissions', authenticateJwt, async (req: CustomRequest, res: Response) => {
-  const permissions = Array.from(db.permissions.values());
+  const permissions = await rolePermRepo.findAllPermissions();
   return res.json({ success: true, data: permissions });
 });
 
