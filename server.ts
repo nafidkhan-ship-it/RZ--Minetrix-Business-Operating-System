@@ -3,8 +3,10 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './src/server/routes/apiRouter.js';
 import { correlationIdMiddleware } from './src/server/middleware/authMiddleware.js';
+import { db } from './src/server/db/database.js';
 
 async function startServer() {
+  await db.ready;
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const HOST = '0.0.0.0';
@@ -19,8 +21,13 @@ async function startServer() {
     res.json({ status: 'UP', timestamp: new Date().toISOString() });
   });
 
-  app.get('/health/readiness', (req, res) => {
-    res.json({ status: 'READY', db: 'CONNECTED', timestamp: new Date().toISOString() });
+  app.get('/health/readiness', async (req, res) => {
+    try {
+      const health = await db.persistenceAdapter.executeHealthCheck();
+      res.status(health.status === 'CONNECTED' || health.status === 'ACTIVE_LOCAL' ? 200 : 503).json({ status: health.status === 'CONNECTED' || health.status === 'ACTIVE_LOCAL' ? 'READY' : 'NOT_READY', db: health, timestamp: new Date().toISOString() });
+    } catch (error) {
+      res.status(503).json({ status: 'NOT_READY', db: 'UNHEALTHY', error: error instanceof Error ? error.message : 'Database unavailable', timestamp: new Date().toISOString() });
+    }
   });
 
   // Shared Core API v1 Gateway Router
