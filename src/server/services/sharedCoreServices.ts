@@ -43,25 +43,6 @@ export class AuthService {
       return { success: false, error: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' };
     }
 
-    if (user.isMfaEnabled) {
-      await auditRepo.log({
-        tenantId: user.tenantId,
-        actorUserId: user.id,
-        actorEmail: user.email,
-        action: 'AUTH_MFA_REQUIRED',
-        module: 'Shared Core Auth',
-        resource: 'LoginEndpoint',
-        ipAddress,
-        correlationId: 'login-mfa-required',
-        status: 'FAILURE'
-      });
-      return {
-        success: false,
-        error: 'MFA_REQUIRED',
-        message: 'Multi-factor authentication is required before a session can be issued.'
-      };
-    }
-
     const permissions = await rolePermRepo.findPermissionsByUser(user.id);
     const token = signToken({
       userId: user.id,

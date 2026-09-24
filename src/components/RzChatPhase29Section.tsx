@@ -294,10 +294,10 @@ export const RzChatPhase29Section: React.FC = () => {
   }, [messages]);
 
   const loadConversations = () => {
-    const list = rzChatService.getConversationsForUser(currentUser.id);
+    const list = rzChatService.getConversationsForUser(currentUser?.id || 'USR-1001');
     setConversations(list);
     if (list.length > 0 && !activeConvId) {
-      setActiveConvId(list[0].id);
+      setActiveConvId(list[0]?.id || null);
     }
   };
 
@@ -311,11 +311,13 @@ export const RzChatPhase29Section: React.FC = () => {
   const handleSwitchUser = (userId: string) => {
     rzChatService.setCurrentUserId(userId);
     const newCurr = rzChatService.getCurrentUser();
-    setCurrentUser(newCurr);
-    setActiveConvId(null);
-    setSelectedMessageIds([]);
-    setIsMultiSelectMode(false);
-    showToast(`Switched active session persona to [${newCurr.displayName}]`);
+    if (newCurr) {
+      setCurrentUser(newCurr);
+      setActiveConvId(null);
+      setSelectedMessageIds([]);
+      setIsMultiSelectMode(false);
+      showToast(`Switched active session persona to [${newCurr.displayName}]`);
+    }
   };
 
   // Input Change with Typing Indicator Emission
@@ -966,18 +968,18 @@ export const RzChatPhase29Section: React.FC = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-mono font-bold rounded-full flex items-center gap-1.5">
-                <MessageSquare className="w-3.5 h-3.5" /> Phase 30 RZ Chat Core Experience
-              </span>
               <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold rounded-full flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5" /> WhatsApp-Style Self-Service Communication
+                <MessageSquare className="w-3.5 h-3.5" /> Pillar 8 &bull; Digital Platforms
+              </span>
+              <span className="px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-mono font-bold rounded-full flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5" /> Enterprise Real-Time Communication &bull; OTT Task Creator
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-mono mt-1">
-              RZ® Chat Enterprise Messaging Center
+              8. RZ® Chating
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-3xl font-mono">
-              Role-based self-service messaging platform integrated with Phase 1–29 ERP logic. Direct chats, groups, reply previews, message deletion, forwarding, pinned/muted controls &amp; real-time typing indicators.
+              Personal &amp; Business chat, Buyer &harr; Seller, Owner &harr; Contractor, Quarry &amp; Crusher groups, file sharing, voice messages, voice/video calls, and 1-click <strong>CREATE OTT TASK</strong> integration.
             </p>
           </div>
 
@@ -2502,8 +2504,8 @@ export const RzChatPhase29Section: React.FC = () => {
                 {groupMembers.map(m => {
                   const u = m.user;
                   if (!u) return null;
-                  const isCurrent = u.id === currentUser.id;
-                  const currentUserMemberRole = groupMembers.find(mem => mem.userId === currentUser.id)?.role;
+                  const isCurrent = u.id === currentUser?.id;
+                  const currentUserMemberRole = groupMembers.find(mem => mem.userId === (currentUser?.id || ''))?.role;
                   const isOwnerOrAdmin = currentUserMemberRole === 'owner' || currentUserMemberRole === 'admin';
 
                   return (

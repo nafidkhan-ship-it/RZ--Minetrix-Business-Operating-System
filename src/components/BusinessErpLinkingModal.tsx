@@ -43,7 +43,7 @@ export const BusinessErpLinkingModal: React.FC<BusinessErpLinkingModalProps> = (
       setCurrentLink(link);
       if (link?.organizationId) {
         setSelectedOrgId(link.organizationId);
-      } else if (orgs.length > 0) {
+      } else if (orgs && orgs.length > 0 && orgs[0]?.id) {
         setSelectedOrgId(orgs[0].id);
       }
       const logs = rzChatService.getAuditLogsForBusiness(businessId, currentUserId);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Pickaxe, Factory, Building2, ShoppingBag, Truck, Cpu,
   Layers, ShieldCheck, Sparkles, CheckCircle2, Search, Filter,
@@ -26,6 +26,28 @@ import {
   PublicCustomerOrder
 } from '../data/miningPlatformPhase17Data';
 
+import { QuarryActiveContextBar } from './quarry/QuarryActiveContextBar';
+import { QuarryProductsView } from './quarry/QuarryProductsView';
+import { QuarryProductionStockView } from './quarry/QuarryProductionStockView';
+import { QuarryGatePassDispatchView } from './quarry/QuarryGatePassDispatchView';
+import { QuarryLandLeasesView } from './quarry/QuarryLandLeasesView';
+import { QuarryMaster, quarryApiClient } from '../services/quarryApiClient';
+import { apiClient, AuthUser } from '../services/apiClient';
+
+const DEFAULT_DEMO_QUARRY: QuarryMaster = {
+  id: 'quarry-laterite-01',
+  tenantId: 'tenant-rz-global',
+  companyId: 'comp-rz-corp-01',
+  branchId: 'br-bangalore-01',
+  name: 'RZ Laterite & Stone Pit - Zone A',
+  quarryType: 'LATERITE',
+  location: 'Malappuram & Mangalore Clusters',
+  address: 'Mining Sector 4B, South Zone',
+  status: 'ACTIVE',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+};
+
 export const MiningOperationsPhase17Section: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     | 'business-models'
@@ -43,10 +65,31 @@ export const MiningOperationsPhase17Section: React.FC = () => {
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Building Materials state
-  const [searchMaterial, setSearchMaterial] = useState('');
-  const [selectedMaterialCategory, setSelectedMaterialCategory] = useState<string>('All');
-  const [materialCatalog] = useState<BuildingMaterialItem[]>(BUILDING_MATERIALS_CATALOG);
+  // Active Quarry & Auth Context (Real Quarry API)
+  const [quarries, setQuarries] = useState<QuarryMaster[]>([DEFAULT_DEMO_QUARRY]);
+  const [activeQuarry, setActiveQuarry] = useState<QuarryMaster>(DEFAULT_DEMO_QUARRY);
+  const [quarriesLoading, setQuarriesLoading] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(apiClient.getAuthUser());
+
+  const fetchQuarries = async () => {
+    setQuarriesLoading(true);
+    const res = await quarryApiClient.listQuarries();
+    setQuarriesLoading(false);
+    if (res.success && res.data && res.data.length > 0) {
+      setQuarries(res.data);
+      if (!res.data.some(q => q.id === activeQuarry.id)) {
+        setActiveQuarry(res.data[0]);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchQuarries();
+  }, []);
+
+  const handleAuthChange = () => {
+    setAuthUser(apiClient.getAuthUser());
+  };
 
   // Public Order Platform state
   const [publicOrders, setPublicOrders] = useState<PublicCustomerOrder[]>(MOCK_PUBLIC_ORDERS);
@@ -58,20 +101,6 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     materialName: 'Washed Manufactured Sand (M-Sand Concrete Grade)',
     quantity: 10
   });
-
-  // Laterite Cutting state
-  const [lateriteLogs, setLateriteLogs] = useState(MOCK_LATERITE_CUTTING_LOGS);
-  const [cuttingForm, setCuttingForm] = useState({
-    siteName: 'Bantwal Quarry Bench #1',
-    grade: 'Grade A (Structural)',
-    dimensions: '30 x 20 x 15 cm',
-    piecesCut: 500,
-    freePieces: 15,
-    operator: 'Ramesh Gowda'
-  });
-
-  // Crusher state
-  const [crusherLog] = useState(MOCK_CRUSHER_SHIFT_LOGS);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -105,30 +134,6 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     setNewOrderForm({ customerName: '', customerPhone: '', deliveryAddress: '', materialName: 'Washed Manufactured Sand (M-Sand Concrete Grade)', quantity: 10 });
     showToast('Public Order Booked Successfully! E-Way bill & GPS tracking activated.');
   };
-
-  const handleAddCuttingLog = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newEntry = {
-      cuttingRegisterId: `LAT-REG-${Math.floor(200 + Math.random() * 800)}`,
-      quarrySiteName: cuttingForm.siteName,
-      stoneGrade: cuttingForm.grade as any,
-      dimensionsCm: cuttingForm.dimensions,
-      piecesCutToday: Number(cuttingForm.piecesCut),
-      freeBonusPiecesCount: Number(cuttingForm.freePieces),
-      dressingWastePercent: 4.5,
-      calculatedTonnageEquivalent: Math.round(Number(cuttingForm.piecesCut) * 0.053 * 10) / 10,
-      operatorName: cuttingForm.operator,
-      machineId: 'CUTTER-LAT-09'
-    };
-    setLateriteLogs([newEntry, ...lateriteLogs]);
-    showToast('Laterite cutting register entry recorded & bonus free pieces calculated!');
-  };
-
-  const filteredMaterials = materialCatalog.filter(mat => {
-    const matchesCat = selectedMaterialCategory === 'All' || mat.category === selectedMaterialCategory;
-    const matchesSearch = mat.name.toLowerCase().includes(searchMaterial.toLowerCase()) || mat.code.toLowerCase().includes(searchMaterial.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
 
   return (
     <div className="space-y-8">
@@ -185,6 +190,17 @@ export const MiningOperationsPhase17Section: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Active Quarry Master & Real RBAC Context Bar */}
+      <QuarryActiveContextBar
+        activeQuarry={activeQuarry}
+        quarries={quarries}
+        loading={quarriesLoading}
+        onSelectQuarry={setActiveQuarry}
+        onRefreshQuarries={fetchQuarries}
+        authUser={authUser}
+        onAuthChange={handleAuthChange}
+      />
 
       {/* Primary Sub-Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800">
@@ -360,276 +376,17 @@ export const MiningOperationsPhase17Section: React.FC = () => {
 
       {/* TAB 2: LAND MANAGEMENT */}
       {activeTab === 'land-management' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div>
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Module 2</span>
-              <h2 className="text-xl font-bold text-white mt-1">Land Owner Management, Lease Agreements &amp; Royalty Revenue Share</h2>
-            </div>
-            <button
-              onClick={() => showToast('Initiated new Patta Land Lease Registration workflow!')}
-              className="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-md"
-            >
-              + Add Land Lease Record
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {MOCK_LAND_OWNERS.map((lo) => (
-              <div key={lo.id} className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                  <span className="text-amber-400 font-bold">{lo.id}</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">
-                    {lo.status}
-                  </span>
-                </div>
-
-                <h4 className="text-sm font-bold text-white">{lo.ownerName}</h4>
-
-                <div className="space-y-1 text-slate-300">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Survey No:</span>
-                    <span>{lo.surveyNo}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Village / Taluk:</span>
-                    <span>{lo.villageTaluk}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Lease Area:</span>
-                    <span className="text-amber-300 font-bold">{lo.acreage} Acres</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Royalty Tariff:</span>
-                    <span className="text-emerald-400">{lo.royaltyTerms}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-800/80 pt-1">
-                    <span className="text-slate-400">Lease Renewal Expiry:</span>
-                    <span className="text-slate-200">{lo.expiryDate}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex justify-end gap-2">
-                  <button
-                    onClick={() => showToast(`Downloaded Lease Agreement PDF for ${lo.ownerName}`)}
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[11px] rounded border border-slate-800 flex items-center gap-1"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> View Lease PDF
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <QuarryLandLeasesView activeQuarry={activeQuarry} />
       )}
 
       {/* TAB 3: BUILDING MATERIALS ENGINE */}
       {activeTab === 'building-materials' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-            <div>
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Module 3 &amp; Catalog</span>
-              <h2 className="text-xl font-bold text-white mt-1">Centralized Building Materials Engine &amp; Stockyard</h2>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search products or SKU codes..."
-                  value={searchMaterial}
-                  onChange={(e) => setSearchMaterial(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <select
-                value={selectedMaterialCategory}
-                onChange={(e) => setSelectedMaterialCategory(e.target.value)}
-                className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
-              >
-                <option value="All">All Categories</option>
-                <option value="Quarry Stone">Quarry Stone</option>
-                <option value="Crushed Aggregate">Crushed Aggregate</option>
-                <option value="Sand Product">Sand Product</option>
-                <option value="Manufactured Block">Manufactured Block</option>
-                <option value="Construction Hardware">Construction Hardware</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredMaterials.map((mat) => (
-              <div key={mat.id} className="p-4 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl space-y-3 transition-all">
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 bg-slate-900 text-amber-300 font-mono text-[10px] rounded border border-slate-800">
-                    {mat.code}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">
-                    {mat.liveAvailabilityStatus}
-                  </span>
-                </div>
-
-                <h4 className="text-sm font-bold text-white leading-tight">{mat.name}</h4>
-
-                <div className="space-y-1 font-mono text-xs">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Stock in Hand:</span>
-                    <strong className="text-white">{mat.stockInHand} {mat.unitOfMeasure}</strong>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Density Factor:</span>
-                    <strong className="text-slate-300">{mat.densityTonPerCft} Ton/CFT</strong>
-                  </div>
-                  <div className="flex justify-between text-slate-400 border-t border-slate-800/80 pt-1 mt-1">
-                    <span>Base Rate (Excl GST):</span>
-                    <strong className="text-amber-400">₹{mat.unitPriceGstExcl.toLocaleString()} / {mat.unitOfMeasure}</strong>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => showToast(`Added ${mat.name} to dispatch order queue`)}
-                  className="w-full py-2 bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-200 text-xs font-bold rounded-lg border border-slate-800 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <ShoppingBag className="w-3.5 h-3.5" /> Book Order
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <QuarryProductsView activeQuarry={activeQuarry} />
       )}
 
       {/* TAB 4: PRODUCTION & STOCK YARD */}
       {activeTab === 'production-stock' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Cutting Register Entry Form */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-              <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center gap-2">
-                <Pickaxe className="w-5 h-5 text-amber-400" /> Laterite Stone Cutting Register
-              </h3>
-
-              <form onSubmit={handleAddCuttingLog} className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Quarry Bench Location</label>
-                  <input
-                    type="text"
-                    value={cuttingForm.siteName}
-                    onChange={(e) => setCuttingForm({ ...cuttingForm, siteName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Stone Grade</label>
-                  <select
-                    value={cuttingForm.grade}
-                    onChange={(e) => setCuttingForm({ ...cuttingForm, grade: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option>Grade A (Structural)</option>
-                    <option>Grade B (Standard Wall)</option>
-                    <option>Grade C (Partition)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Pieces Cut</label>
-                    <input
-                      type="number"
-                      value={cuttingForm.piecesCut}
-                      onChange={(e) => setCuttingForm({ ...cuttingForm, piecesCut: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Free Bonus Pieces</label>
-                    <input
-                      type="number"
-                      value={cuttingForm.freePieces}
-                      onChange={(e) => setCuttingForm({ ...cuttingForm, freePieces: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Operator Name</label>
-                  <input
-                    type="text"
-                    value={cuttingForm.operator}
-                    onChange={(e) => setCuttingForm({ ...cuttingForm, operator: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl shadow-lg transition-all"
-                >
-                  Record Laterite Shift Production
-                </button>
-              </form>
-            </div>
-
-            {/* Crusher Yield & Stockyard Live Table */}
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-              <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center justify-between">
-                <span>Crusher Plant Live Production Yield (Shift Summary)</span>
-                <span className="text-xs font-mono text-emerald-400">Total Yield: 1,480 Tons</span>
-              </h3>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                  <span className="text-slate-400 text-[10px] block">Raw Boulder Feed</span>
-                  <strong className="text-amber-400 text-base">{crusherLog.rawFeedBoulderTons} T</strong>
-                </div>
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                  <span className="text-slate-400 text-[10px] block">20mm Aggregates</span>
-                  <strong className="text-emerald-400 text-base">{crusherLog.produced20mmTons} T</strong>
-                </div>
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                  <span className="text-slate-400 text-[10px] block">M-Sand Output</span>
-                  <strong className="text-blue-400 text-base">{crusherLog.producedMSandTons} T</strong>
-                </div>
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                  <span className="text-slate-400 text-[10px] block">P-Sand Output</span>
-                  <strong className="text-purple-400 text-base">{crusherLog.producedPSandTons} T</strong>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto pt-2">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                    <tr>
-                      <th className="p-3">Register ID</th>
-                      <th className="p-3">Quarry Site</th>
-                      <th className="p-3">Grade</th>
-                      <th className="p-3">Pieces Cut</th>
-                      <th className="p-3">Free Pieces</th>
-                      <th className="p-3">Est Tonnage</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                    {lateriteLogs.map((log) => (
-                      <tr key={log.cuttingRegisterId} className="hover:bg-slate-800/50">
-                        <td className="p-3 text-amber-400 font-bold">{log.cuttingRegisterId}</td>
-                        <td className="p-3">{log.quarrySiteName}</td>
-                        <td className="p-3 text-slate-300">{log.stoneGrade}</td>
-                        <td className="p-3 font-bold text-white">{log.piecesCutToday}</td>
-                        <td className="p-3 text-emerald-400 font-bold">+{log.freeBonusPiecesCount}</td>
-                        <td className="p-3">{log.calculatedTonnageEquivalent} T</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
+        <QuarryProductionStockView activeQuarry={activeQuarry} />
       )}
 
       {/* TAB 5: PUBLIC ORDER PORTAL */}
@@ -761,47 +518,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
 
       {/* TAB 6: PRICING, DISPATCH & WEIGHBRIDGE */}
       {activeTab === 'pricing-dispatch' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Modules 6, 7 &amp; 8</span>
-            <h2 className="text-xl font-bold text-white mt-1">Smart Dynamic Pricing, Automated Gate Pass &amp; Weighbridge Telemetry</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono">
-              <h4 className="text-sm font-bold text-amber-400">Smart Pricing Tiers</h4>
-              <ul className="space-y-1.5 text-slate-300">
-                <li className="flex justify-between"><span>Retail Walk-In Rate:</span><strong className="text-white">₹780 / Ton</strong></li>
-                <li className="flex justify-between"><span>Wholesale Dealer Rate:</span><strong className="text-emerald-400">₹680 / Ton</strong></li>
-                <li className="flex justify-between"><span>Contractor Project Rate:</span><strong className="text-amber-300">₹640 / Ton</strong></li>
-                <li className="flex justify-between"><span>Loading Charge:</span><span>₹35 / Ton</span></li>
-              </ul>
-            </div>
-
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono">
-              <h4 className="text-sm font-bold text-emerald-400">Digital Gate Pass &amp; QR Code</h4>
-              <p className="text-slate-300 leading-relaxed text-[11px]">
-                E-Way bill integrated digital gate pass generated upon scalehouse gross weight capture. QR verified by quarry security guards before gate exit.
-              </p>
-              <button
-                onClick={() => showToast('Generated sample E-Way Bill Gate Pass PDF with QR code')}
-                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded border border-slate-800 font-bold text-[11px]"
-              >
-                Simulate QR Gate Pass
-              </button>
-            </div>
-
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 font-mono">
-              <h4 className="text-sm font-bold text-blue-400">Weighbridge Telemetry</h4>
-              <ul className="space-y-1.5 text-slate-300 text-[11px]">
-                <li className="flex justify-between"><span>Scalehouse #1:</span><strong className="text-emerald-400">ONLINE (60T Capacity)</strong></li>
-                <li className="flex justify-between"><span>Scalehouse #2:</span><strong className="text-emerald-400">ONLINE (80T Capacity)</strong></li>
-                <li className="flex justify-between"><span>ANPR Camera:</span><span>Automated Plate Capture Active</span></li>
-                <li className="flex justify-between"><span>RFID Tag Reader:</span><span>Fleet Fast-Pass Active</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        <QuarryGatePassDispatchView activeQuarry={activeQuarry} />
       )}
 
       {/* TAB 7: MACHINERY, RENTAL & MARKETPLACE */}

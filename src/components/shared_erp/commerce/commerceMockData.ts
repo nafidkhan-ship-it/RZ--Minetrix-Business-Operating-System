@@ -1,0 +1,1353 @@
+// Commerce & Trade Master Mock Data for RZ® MINETRIX BOS Shared ERP Core
+// STUDIO PREVIEW / DEMO DATA
+
+import {
+  CommerceProduct,
+  ProductCategory,
+  MeasurementUnit,
+  HsnGstRecord,
+  CustomerProfile,
+  SupplierProfile,
+  PurchaseRequestItem,
+  RfqRecord,
+  PurchaseOrderItem,
+  GrnRecord,
+  PurchaseBillRecord,
+  PurchaseReturnRecord,
+  QuotationRecord,
+  SalesOrderItem,
+  DeliveryRecord,
+  InvoiceRecord,
+  PaymentRecord,
+  SalesReturnRecord,
+  CreditDebitNoteRecord,
+  UnifiedOrderRecord,
+  CommerceGatePass,
+  LedgerEntry,
+  CommerceReportDefinition
+} from './types';
+
+// 1. PRODUCT CATEGORIES
+export const MOCK_PRODUCT_CATEGORIES: ProductCategory[] = [
+  {
+    id: 'CAT-01',
+    name: 'Dimension Stone',
+    subcategories: ['Laterite Cut Stone', 'Granite Blocks', 'Limestone Slabs', 'Flagstones'],
+    productCount: 8,
+    activeCount: 8,
+    defaultUnit: 'Piece',
+    defaultGstPct: 5,
+    status: 'ACTIVE',
+    description: 'Computerized track-saw extracted natural laterite blocks and quarry building stones.'
+  },
+  {
+    id: 'CAT-02',
+    name: 'Crushed Sand',
+    subcategories: ['Manufactured Sand (M-Sand)', 'Plastering Sand (P-Sand)', 'Washed Grit'],
+    productCount: 6,
+    activeCount: 6,
+    defaultUnit: 'Ton',
+    defaultGstPct: 5,
+    status: 'ACTIVE',
+    description: 'VSI shape-corrected concrete and plaster grade manufactured sand.'
+  },
+  {
+    id: 'CAT-03',
+    name: 'Aggregates & Blue Metal',
+    subcategories: ['6mm Chips', '10mm Graded', '20mm Concrete', '40mm Ballast', 'GSB / WMM'],
+    productCount: 12,
+    activeCount: 11,
+    defaultUnit: 'Ton',
+    defaultGstPct: 5,
+    status: 'ACTIVE',
+    description: 'IS 383 compliant multi-stage crushed blue granite aggregates for highway and RMC.'
+  },
+  {
+    id: 'CAT-04',
+    name: 'Quarry Rubble & Soling',
+    subcategories: ['Granite Soling Stone', 'Hard Pitching Rock', 'Crusher Run Spoil'],
+    productCount: 5,
+    activeCount: 5,
+    defaultUnit: 'Load',
+    defaultGstPct: 5,
+    status: 'ACTIVE',
+    description: 'Heavy foundation rubble, retaining wall pitching stone, and road sub-base boulders.'
+  },
+  {
+    id: 'CAT-05',
+    name: 'Fleet Consumables & Fuels',
+    subcategories: ['High-Speed Diesel (HSD)', 'Hydraulic Oils', 'Engine Lubricants', 'Commercial Tyres'],
+    productCount: 14,
+    activeCount: 13,
+    defaultUnit: 'Litre',
+    defaultGstPct: 18,
+    status: 'ACTIVE',
+    description: 'Bulk petroleum products, specialized crusher greases and heavy dumper consumables.'
+  },
+  {
+    id: 'CAT-06',
+    name: 'Mining Spares & Wear Parts',
+    subcategories: ['Crusher Jaw Plates', 'Cone Mantles & Concaves', 'VSI Rotor Tips', 'Screen Meshes'],
+    productCount: 22,
+    activeCount: 20,
+    defaultUnit: 'Piece',
+    defaultGstPct: 18,
+    status: 'ACTIVE',
+    description: 'High-manganese cast wear components and secondary impact crusher tooling.'
+  }
+];
+
+// 2. MEASUREMENT UNITS
+export const MOCK_MEASUREMENT_UNITS: MeasurementUnit[] = [
+  { id: 'UNIT-01', name: 'Piece / Block', symbol: 'Pcs', conversionFactor: 1, baseUnit: 'Pcs', decimalPrecision: 0, isActive: true, category: 'COUNT' },
+  { id: 'UNIT-02', name: 'Metric Ton', symbol: 'Ton', conversionFactor: 1000, baseUnit: 'Kg', decimalPrecision: 3, isActive: true, category: 'MASS' },
+  { id: 'UNIT-03', name: 'Kilogram', symbol: 'Kg', conversionFactor: 1, baseUnit: 'Kg', decimalPrecision: 2, isActive: true, category: 'MASS' },
+  { id: 'UNIT-04', name: 'Standard Tipper Load (10-Wheel)', symbol: 'Load', conversionFactor: 24, baseUnit: 'Ton', decimalPrecision: 1, isActive: true, category: 'VOLUME' },
+  { id: 'UNIT-05', name: 'Litre', symbol: 'Ltr', conversionFactor: 1, baseUnit: 'Ltr', decimalPrecision: 2, isActive: true, category: 'VOLUME' },
+  { id: 'UNIT-06', name: 'Haulage Trip', symbol: 'Trip', conversionFactor: 1, baseUnit: 'Trip', decimalPrecision: 0, isActive: true, category: 'COUNT' },
+  { id: 'UNIT-07', name: 'Machine Hour', symbol: 'Hr', conversionFactor: 1, baseUnit: 'Hr', decimalPrecision: 1, isActive: true, category: 'TIME' },
+  { id: 'UNIT-08', name: 'Working Day', symbol: 'Day', conversionFactor: 8, baseUnit: 'Hr', decimalPrecision: 0, isActive: true, category: 'TIME' },
+  { id: 'UNIT-09', name: 'Square Foot', symbol: 'Sq.ft', conversionFactor: 1, baseUnit: 'Sq.ft', decimalPrecision: 2, isActive: true, category: 'AREA' },
+  { id: 'UNIT-10', name: 'Square Metre', symbol: 'Sq.m', conversionFactor: 10.7639, baseUnit: 'Sq.ft', decimalPrecision: 2, isActive: true, category: 'AREA' },
+  { id: 'UNIT-11', name: 'Cent (Land Unit)', symbol: 'Cent', conversionFactor: 435.6, baseUnit: 'Sq.ft', decimalPrecision: 3, isActive: true, category: 'AREA' },
+  { id: 'UNIT-12', name: 'Cubic Metre', symbol: 'Cu.m', conversionFactor: 35.3147, baseUnit: 'Cu.ft', decimalPrecision: 3, isActive: true, category: 'VOLUME' }
+];
+
+// 3. HSN / GST REGISTRY
+export const MOCK_HSN_GST: HsnGstRecord[] = [
+  { id: 'HSN-01', hsnSac: '2516', description: 'Granite, porphyry, basalt, sandstone and other monumental/building stone (Laterite & Rubble)', category: 'Building Stone', gstPct: 5, cgstPct: 2.5, sgstPct: 2.5, igstPct: 5, effectiveDate: '2023-01-01', isActive: true },
+  { id: 'HSN-02', hsnSac: '2517', description: 'Pebbles, gravel, broken or crushed stone, of a kind commonly used for concrete aggregates', category: 'Aggregates', gstPct: 5, cgstPct: 2.5, sgstPct: 2.5, igstPct: 5, effectiveDate: '2023-01-01', isActive: true },
+  { id: 'HSN-03', hsnSac: '2505', description: 'Natural sands of all kinds (M-Sand & P-Sand mineral fines classification)', category: 'Sand', gstPct: 5, cgstPct: 2.5, sgstPct: 2.5, igstPct: 5, effectiveDate: '2023-01-01', isActive: true },
+  { id: 'HSN-04', hsnSac: '2710', description: 'Petroleum oils, other than crude; High Speed Diesel for heavy plant machinery', category: 'Fuel', gstPct: 18, cgstPct: 9, sgstPct: 9, igstPct: 18, effectiveDate: '2023-01-01', isActive: true },
+  { id: 'HSN-05', hsnSac: '8474', description: 'Machinery for sorting, screening, separating, crushing or grinding mineral substances', category: 'Mining Spares', gstPct: 18, cgstPct: 9, sgstPct: 9, igstPct: 18, effectiveDate: '2023-01-01', isActive: true },
+  { id: 'HSN-06', hsnSac: '9965', description: 'Goods transport agency (GTA) services by road for bulk stone and aggregate freight', category: 'Transport SAC', gstPct: 5, cgstPct: 2.5, sgstPct: 2.5, igstPct: 5, effectiveDate: '2023-01-01', isActive: true }
+];
+
+// 4. PRODUCT MASTER WITH DISTINCT CONFIGURABLE RATE PILLARS
+export const MOCK_COMMERCE_PRODUCTS: CommerceProduct[] = [
+  {
+    id: 'PRD-001',
+    name: 'Dressed Laterite Stone (30×20×15 cm)',
+    sku: 'LAT-DIM-302015',
+    category: 'Dimension Stone',
+    subcategory: 'Laterite Cut Stone',
+    description: 'Precision-cut red dimension laterite stone extracted with circular hydraulic track saws.',
+    unit: 'Piece',
+    hsnSac: '2516',
+    gstRatePct: 5,
+    purchaseRate: 32,
+    salesRate: 46,
+    minRate: 40,
+    maxRate: 52,
+    customerRate: 42,
+    supplierRate: 30,
+    agreementRate: 41,
+    stockTracking: true,
+    currentStock: 18400,
+    reorderLevel: 5000,
+    batchTracking: true,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Calicut Laterite Concession #1',
+    sourceQuarry: 'Calicut Laterite Block A',
+    sourceCrusher: 'N/A (Pithead Extraction)',
+    imageUrl: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 4,
+    notes: 'Primary material for Kerala heritage villa construction and load-bearing compound walls.',
+    rates: [
+      { id: 'R-1', rateType: 'DEFAULT', rate: 46, unit: 'Piece', effectiveFrom: '2026-01-01', sourceLabel: 'Catalog Standard Retail', status: 'ACTIVE' },
+      { id: 'R-2', rateType: 'CUSTOMER_SPECIFIC', targetEntityName: 'Sobha Developers Ltd', targetEntityId: 'CUST-001', rate: 42, unit: 'Piece', effectiveFrom: '2026-01-15', sourceLabel: 'Sobha Framework Agreement', status: 'ACTIVE' },
+      { id: 'R-3', rateType: 'QUANTITY_TIER', minQty: 3000, rate: 41, unit: 'Piece', effectiveFrom: '2026-01-01', sourceLabel: 'Bulk Tipper Tier (>3,000 Pcs)', status: 'ACTIVE' },
+      { id: 'R-4', rateType: 'LOCATION', location: 'Wayanad Hill Sector', rate: 49, unit: 'Piece', effectiveFrom: '2026-01-01', sourceLabel: 'Ghat Transport Differential', status: 'ACTIVE' },
+      { id: 'R-5', rateType: 'AGREEMENT', rate: 41.5, unit: 'Piece', effectiveFrom: '2026-02-01', sourceLabel: 'NH-66 Highway Joint Venture Rate', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-002',
+    name: 'Manufactured Sand (M-Sand Zone II)',
+    sku: 'AGG-MSAND-Z2',
+    category: 'Crushed Sand',
+    subcategory: 'Manufactured Sand (M-Sand)',
+    description: 'VSI tertiary shaped manufactured sand conforming to IS 383 for structural concrete.',
+    unit: 'Ton',
+    hsnSac: '2505',
+    gstRatePct: 5,
+    purchaseRate: 580,
+    salesRate: 850,
+    minRate: 780,
+    maxRate: 920,
+    customerRate: 810,
+    supplierRate: 560,
+    agreementRate: 800,
+    stockTracking: true,
+    currentStock: 4280,
+    reorderLevel: 1200,
+    batchTracking: true,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Wayanad VSI Crusher Plant',
+    sourceQuarry: 'Meppadi Blue Granite Quarry',
+    sourceCrusher: 'Wayanad VSI 250 TPH Plant',
+    imageUrl: 'https://images.unsplash.com/photo-1578885136359-16c8bd4d3a8e?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 6,
+    notes: 'Consistent silt content <3% by volume; ideal for RMC batching plants.',
+    rates: [
+      { id: 'R-6', rateType: 'DEFAULT', rate: 850, unit: 'Ton', effectiveFrom: '2026-01-01', sourceLabel: 'Gate Weighbridge Retail', status: 'ACTIVE' },
+      { id: 'R-7', rateType: 'CUSTOMER_SPECIFIC', targetEntityName: 'Malabar Highway Infrastructure', targetEntityId: 'CUST-002', rate: 800, unit: 'Ton', effectiveFrom: '2026-01-10', sourceLabel: 'NH Project Master Discount', status: 'ACTIVE' },
+      { id: 'R-8', rateType: 'QUANTITY_TIER', minQty: 500, rate: 790, unit: 'Ton', effectiveFrom: '2026-01-01', sourceLabel: 'Train / Large Consignment (>500 MT)', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-003',
+    name: 'Plastering Sand (P-Sand <150 Micron)',
+    sku: 'AGG-PSAND-P1',
+    category: 'Crushed Sand',
+    subcategory: 'Plastering Sand (P-Sand)',
+    description: 'Superfine air-classified sand for smooth wall plastering, avoiding screed cracks.',
+    unit: 'Ton',
+    hsnSac: '2505',
+    gstRatePct: 5,
+    purchaseRate: 640,
+    salesRate: 950,
+    minRate: 880,
+    maxRate: 1020,
+    customerRate: 910,
+    supplierRate: 620,
+    agreementRate: 890,
+    stockTracking: true,
+    currentStock: 1840,
+    reorderLevel: 600,
+    batchTracking: true,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Wayanad VSI Crusher Plant',
+    sourceQuarry: 'Meppadi Blue Granite Quarry',
+    sourceCrusher: 'Wayanad VSI 250 TPH Plant',
+    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 3,
+    notes: 'Premium grade washed and de-dusted sand.',
+    rates: [
+      { id: 'R-9', rateType: 'DEFAULT', rate: 950, unit: 'Ton', effectiveFrom: '2026-01-01', sourceLabel: 'Standard Retail Rate', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-004',
+    name: '20mm Graded Blue Metal Aggregate',
+    sku: 'AGG-BM-20MM',
+    category: 'Aggregates & Blue Metal',
+    subcategory: '20mm Concrete',
+    description: 'Double-crushed cubical 20mm granite aggregate for high-strength column concrete.',
+    unit: 'Ton',
+    hsnSac: '2517',
+    gstRatePct: 5,
+    purchaseRate: 520,
+    salesRate: 780,
+    minRate: 720,
+    maxRate: 840,
+    customerRate: 750,
+    supplierRate: 500,
+    agreementRate: 740,
+    stockTracking: true,
+    currentStock: 6120,
+    reorderLevel: 2000,
+    batchTracking: true,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Meppadi Quarry Operations',
+    sourceQuarry: 'Meppadi Blue Granite Quarry',
+    sourceCrusher: 'Crusher Unit #1 Primary Jaw & Cone',
+    imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 5,
+    notes: 'Flakiness index <15%; elongation index <15%; approved by PWD Kerala.',
+    rates: [
+      { id: 'R-10', rateType: 'DEFAULT', rate: 780, unit: 'Ton', effectiveFrom: '2026-01-01', sourceLabel: 'Standard Ex-Yard Rate', status: 'ACTIVE' },
+      { id: 'R-11', rateType: 'CUSTOMER_SPECIFIC', targetEntityName: 'Kalyan Precast Industries', targetEntityId: 'CUST-004', rate: 740, unit: 'Ton', effectiveFrom: '2026-01-05', sourceLabel: 'Precast Special Tie-Up Rate', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-005',
+    name: 'Granite Rubble (Soling & Pitching Stone)',
+    sku: 'AGG-RUB-SOLING',
+    category: 'Quarry Rubble & Soling',
+    subcategory: 'Granite Soling Stone',
+    description: 'Heavy blasted hard granite boulders for road basement soling and river embankment.',
+    unit: 'Load',
+    hsnSac: '2516',
+    gstRatePct: 5,
+    purchaseRate: 7200,
+    salesRate: 11500,
+    minRate: 10000,
+    maxRate: 13000,
+    customerRate: 10800,
+    supplierRate: 6800,
+    agreementRate: 10500,
+    stockTracking: true,
+    currentStock: 340,
+    reorderLevel: 80,
+    batchTracking: false,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Pithead Blasting Concession',
+    sourceQuarry: 'Meppadi Blue Granite Quarry',
+    sourceCrusher: 'N/A (Raw Pit Blasted)',
+    imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 2,
+    notes: 'Sold by 10-wheel tipper load (~22-24 MT density equivalent).',
+    rates: [
+      { id: 'R-12', rateType: 'DEFAULT', rate: 11500, unit: 'Load', effectiveFrom: '2026-01-01', sourceLabel: 'Standard Per-Load Price', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-006',
+    name: 'Bulk High-Speed Diesel (HSD Commercial)',
+    sku: 'FLEET-HSD-BULK',
+    category: 'Fleet Consumables & Fuels',
+    subcategory: 'High-Speed Diesel (HSD)',
+    description: 'Refinery bulk industrial diesel for heavy dumpers, hydraulic excavators and gensets.',
+    unit: 'Litre',
+    hsnSac: '2710',
+    gstRatePct: 18,
+    purchaseRate: 92,
+    salesRate: 98,
+    minRate: 91,
+    maxRate: 102,
+    customerRate: 98,
+    supplierRate: 92,
+    agreementRate: 93.5,
+    stockTracking: true,
+    currentStock: 14500,
+    reorderLevel: 4000,
+    batchTracking: true,
+    serialTracking: false,
+    isActive: true,
+    primarySupplier: 'Bharat Petroleum Yard Depot',
+    sourceQuarry: 'Central Fuel Dispensing Yard',
+    sourceCrusher: 'Yard Underground Tank #1',
+    imageUrl: 'https://images.unsplash.com/photo-1527018607619-a508a2be00be?auto=format&fit=crop&w=400&q=80',
+    documentsCount: 8,
+    notes: 'Automated fuel dispensing linked to RFID vehicle tags.',
+    rates: [
+      { id: 'R-13', rateType: 'DEFAULT', rate: 98, unit: 'Litre', effectiveFrom: '2026-02-01', sourceLabel: 'Internal Fleet Standard Issue', status: 'ACTIVE' }
+    ]
+  },
+  {
+    id: 'PRD-007',
+    name: 'Cone Crusher Manganese Mantle & Concave',
+    sku: 'SPARE-SANDVIK-CH430',
+    category: 'Mining Spares & Wear Parts',
+    subcategory: 'Cone Mantles & Concaves',
+    description: 'Sandvik CH430 / Metso HP300 equivalent 18% Mn alloy cone crusher crushing liner set.',
+    unit: 'Piece',
+    hsnSac: '8474',
+    gstRatePct: 18,
+    purchaseRate: 85000,
+    salesRate: 110000,
+    minRate: 105000,
+    maxRate: 125000,
+    customerRate: 110000,
+    supplierRate: 85000,
+    agreementRate: 88000,
+    stockTracking: true,
+    currentStock: 4,
+    reorderLevel: 2,
+    batchTracking: true,
+    serialTracking: true,
+    isActive: true,
+    primarySupplier: 'Sandvik Mining Spare Parts',
+    sourceQuarry: 'Central Spares Warehouse',
+    sourceCrusher: 'Crusher Maintenance Bay',
+    documentsCount: 4,
+    notes: 'Estimated operating service life: 650 operational hours under hard basalt crushing.',
+    rates: [
+      { id: 'R-14', rateType: 'DEFAULT', rate: 110000, unit: 'Piece', effectiveFrom: '2026-01-01', sourceLabel: 'Replacement Assembly Cost', status: 'ACTIVE' }
+    ]
+  }
+];
+
+// 5. CUSTOMER CRM
+export const MOCK_CUSTOMERS: CustomerProfile[] = [
+  {
+    id: 'CUST-001',
+    name: 'Thomas Mathew',
+    businessName: 'Sobha Developers Ltd',
+    phone: '+91 98450 11223',
+    email: 'procurement.south@sobha.com',
+    address: 'Sobha City Commercial Hub, Thrissur, Kerala 680553',
+    gstin: '32AABCS8891P1ZR',
+    state: 'Kerala',
+    district: 'Thrissur',
+    customerType: 'ENTERPRISE',
+    creditLimit: 3500000,
+    paymentTerms: '30 Days Net Credit',
+    openingBalance: 250000,
+    salesHistoryCount: 48,
+    outstandingReceivable: 480000,
+    advanceBalance: 0,
+    status: 'ACTIVE',
+    notes: 'Premium Tier-1 developer syndicate. Monthly requirement of ~2,500 MT aggregates and 8,000 laterite blocks.',
+    documents: ['GST Certificate', 'PAN Card', 'Credit Agreement', 'Trade License']
+  },
+  {
+    id: 'CUST-002',
+    name: 'Haris K. V.',
+    businessName: 'Malabar Highway Infrastructure',
+    phone: '+91 94470 33445',
+    email: 'haris@malabarinfra.com',
+    address: 'NH-66 Project Camp, Vengalam Bypass, Calicut 673303',
+    gstin: '32AACCM4412L1ZQ',
+    state: 'Kerala',
+    district: 'Kozhikode',
+    customerType: 'CONTRACTOR',
+    creditLimit: 6000000,
+    paymentTerms: '45 Days Milestone Billing',
+    openingBalance: 600000,
+    salesHistoryCount: 62,
+    outstandingReceivable: 1240000,
+    advanceBalance: 0,
+    status: 'ACTIVE',
+    notes: 'Main contractor for NH-66 6-lane road widening package. High volume daily dispatches.',
+    documents: ['GST Certificate', 'Work Order NH-66', 'Bank Guarantee', 'PAN Card']
+  },
+  {
+    id: 'CUST-003',
+    name: 'Suresh Babu',
+    businessName: 'Calicut Heritage Villa Builders',
+    phone: '+91 99950 55667',
+    email: 'suresh@heritagevillas.in',
+    address: 'Silver Hills Road, Chevayur, Calicut 673017',
+    gstin: '32AADCV9012N1ZW',
+    state: 'Kerala',
+    district: 'Kozhikode',
+    customerType: 'CONTRACTOR',
+    creditLimit: 1000000,
+    paymentTerms: '15 Days Credit',
+    openingBalance: 0,
+    salesHistoryCount: 26,
+    outstandingReceivable: 63000,
+    advanceBalance: 45000,
+    status: 'ACTIVE',
+    notes: 'Exclusive client for premium machine-cut red laterite dimension stones.',
+    documents: ['GST Certificate', 'PAN Card']
+  },
+  {
+    id: 'CUST-004',
+    name: 'Deepak Varma',
+    businessName: 'Kalyan Precast Industries',
+    phone: '+91 97441 77889',
+    email: 'deepak@kalyanprecast.com',
+    address: 'KINFRA Mega Food Park Area, Kakkanad, Kochi 682030',
+    gstin: '32AAECK2231K1ZS',
+    state: 'Kerala',
+    district: 'Ernakulam',
+    customerType: 'ENTERPRISE',
+    creditLimit: 2000000,
+    paymentTerms: 'Net 15 Days',
+    openingBalance: 0,
+    salesHistoryCount: 31,
+    outstandingReceivable: 0,
+    advanceBalance: 120000,
+    status: 'ACTIVE',
+    notes: 'Consumes 20mm aggregates and M-Sand for precast culverts and boundary walls.',
+    documents: ['GST Certificate', 'PAN Card', 'KINFRA Lease Deed']
+  }
+];
+
+// 6. SUPPLIER SRM
+export const MOCK_SUPPLIERS: SupplierProfile[] = [
+  {
+    id: 'SUPP-001',
+    name: 'Ashok Kumar',
+    businessName: 'Bharat Petroleum Yard Depot',
+    phone: '0495-2761100',
+    email: 'commercial.calicut@bpcl.in',
+    address: 'Feroke Bulk Storage Terminal, Calicut 673631',
+    gstin: '32AABCB2214E1Z0',
+    state: 'Kerala',
+    district: 'Kozhikode',
+    supplierType: 'FUEL_DEPOT',
+    creditTerms: '15 Days Credit',
+    openingBalance: 200000,
+    purchaseHistoryCount: 42,
+    outstandingPayable: 450000,
+    advancePaid: 100000,
+    status: 'ACTIVE',
+    notes: 'Primary fuel contractor providing HSD tankers directly to quarry dispenser tanks.',
+    documents: ['PESO Explosives License', 'GST Certificate', 'Supply Contract']
+  },
+  {
+    id: 'SUPP-002',
+    name: 'Naveen Jindal',
+    businessName: 'Sandvik Mining Spare Parts',
+    phone: '+91 80 4400 1100',
+    email: 'sales.south@sandvikspares.com',
+    address: 'Industrial Area Phase 2, Peenya, Bengaluru, Karnataka 560058',
+    gstin: '29AABCS9912Q1ZZ',
+    state: 'Karnataka',
+    district: 'Bengaluru Urban',
+    supplierType: 'OEM_SPARES',
+    creditTerms: '30 Days Net Credit',
+    openingBalance: 85000,
+    purchaseHistoryCount: 18,
+    outstandingPayable: 185000,
+    advancePaid: 0,
+    status: 'ACTIVE',
+    notes: 'OEM supplier of cone crusher manganese liners, bearings and heavy jaw plates.',
+    documents: ['OEM Authorization', 'GST Certificate', 'ISO 9001 Certificate']
+  },
+  {
+    id: 'SUPP-003',
+    name: 'Rameshwar Lal',
+    businessName: 'Solar Explosives India Ltd',
+    phone: '+91 712 6634555',
+    email: 'sales.south@solarexplosives.com',
+    address: 'PESO Approved Magazine Complex, Palakkad 678007',
+    gstin: '32AABCS4451M1ZY',
+    state: 'Kerala',
+    district: 'Palakkad',
+    supplierType: 'EXPLOSIVES',
+    creditTerms: 'Cash Against Delivery (PESO Mandate)',
+    openingBalance: 0,
+    purchaseHistoryCount: 24,
+    outstandingPayable: 0,
+    advancePaid: 74000,
+    status: 'ACTIVE',
+    notes: 'Licensed delivery of cast boosters, non-electric shock tubes, and emulsion explosives in explosive vans.',
+    documents: ['PESO Magazine License', 'Van Route Clearance', 'Controller of Explosives NoC']
+  },
+  {
+    id: 'SUPP-004',
+    name: 'Surinder Singh',
+    businessName: 'JK Tyre Commercial Fleet Hub',
+    phone: '+91 98110 44552',
+    email: 'commercial.fleet@jktyre.com',
+    address: 'National Highway Depot, Edappally, Kochi 682024',
+    gstin: '32AABCJ9914P1ZX',
+    state: 'Kerala',
+    district: 'Ernakulam',
+    supplierType: 'LOGISTICS',
+    creditTerms: '30 Days Credit',
+    openingBalance: 0,
+    purchaseHistoryCount: 15,
+    outstandingPayable: 92000,
+    advancePaid: 0,
+    status: 'ACTIVE',
+    notes: 'Radial tyres for 10-wheel tippers and heavy Volvo 30-ton dumpers.',
+    documents: ['GST Certificate', 'Fleet Discount MOU']
+  }
+];
+
+// 7. PURCHASE REQUESTS
+export const MOCK_PURCHASE_REQUESTS: PurchaseRequestItem[] = [
+  {
+    id: 'PR-901',
+    requestNumber: 'PR-2026-041',
+    requestDate: '21 Feb 2026',
+    requestedBy: 'Rajesh Nair (Crusher Plant Head)',
+    department: 'Crusher Maintenance',
+    branch: 'Wayanad VSI Plant',
+    productId: 'PRD-007',
+    productName: 'Cone Crusher Manganese Mantle & Concave',
+    quantity: 2,
+    unit: 'Piece',
+    requiredDate: '28 Feb 2026',
+    preferredSupplier: 'Sandvik Mining Spare Parts',
+    estimatedRate: 85000,
+    estimatedAmount: 170000,
+    priority: 'HIGH',
+    reason: 'Crusher secondary cone liners worn down to 12mm minimum thickness; risk of core mantle crack.',
+    approvalStatus: 'APPROVED'
+  },
+  {
+    id: 'PR-902',
+    requestNumber: 'PR-2026-042',
+    requestDate: '22 Feb 2026',
+    requestedBy: 'Muhammed Shafi (Yard Fleet Foreman)',
+    department: 'Fleet Yard',
+    branch: 'Calicut Central Depot',
+    productId: 'PRD-006',
+    productName: 'Bulk High-Speed Diesel (HSD)',
+    quantity: 12000,
+    unit: 'Litre',
+    requiredDate: '24 Feb 2026',
+    preferredSupplier: 'Bharat Petroleum Yard Depot',
+    estimatedRate: 92,
+    estimatedAmount: 1104000,
+    priority: 'URGENT',
+    reason: 'Underground reserve dipped below 4,000 Litre buffer threshold with 8 dumpers operating full shifts.',
+    approvalStatus: 'CONVERTED_TO_RFQ'
+  },
+  {
+    id: 'PR-903',
+    requestNumber: 'PR-2026-043',
+    requestDate: '23 Feb 2026',
+    requestedBy: 'Vinod Kumar (Blasting Incharge)',
+    department: 'Quarry Pithead',
+    branch: 'Meppadi Quarry Block',
+    productId: 'PRD-EXP-01',
+    productName: 'Emulsion Explosive Cartridges 83mm (Solar)',
+    quantity: 600,
+    unit: 'Kg',
+    requiredDate: '01 Mar 2026',
+    preferredSupplier: 'Solar Explosives India Ltd',
+    estimatedRate: 115,
+    estimatedAmount: 69000,
+    priority: 'MEDIUM',
+    reason: 'Scheduled deep-hole bench blasting for Quarry Level 3 excavation.',
+    approvalStatus: 'REQUESTED'
+  }
+];
+
+// 8. RFQ (REQUEST FOR QUOTATION)
+export const MOCK_RFQS: RfqRecord[] = [
+  {
+    id: 'RFQ-801',
+    rfqNumber: 'RFQ-2026-018',
+    prNumber: 'PR-2026-042',
+    productName: 'Bulk High-Speed Diesel (HSD Tanker 12,000 Ltrs)',
+    quantity: 12000,
+    unit: 'Litre',
+    dateCreated: '20 Feb 2026',
+    closingDate: '22 Feb 2026',
+    status: 'EVALUATED',
+    quotes: [
+      {
+        supplierId: 'SUPP-001',
+        supplierName: 'Bharat Petroleum Yard Depot',
+        rate: 92.00,
+        taxPct: 18,
+        freight: 4500,
+        deliveryTimeDays: 1,
+        paymentTerms: '15 Days Credit',
+        totalAmount: 1307220,
+        isSelected: true
+      },
+      {
+        supplierId: 'SUPP-OIL-02',
+        supplierName: 'Indian Oil Corporation Terminal',
+        rate: 92.40,
+        taxPct: 18,
+        freight: 6000,
+        deliveryTimeDays: 2,
+        paymentTerms: 'Advance NEFT',
+        totalAmount: 1314902,
+        isSelected: false
+      },
+      {
+        supplierId: 'SUPP-OIL-03',
+        supplierName: 'Hindustan Petroleum Depot Feroke',
+        rate: 92.80,
+        taxPct: 18,
+        freight: 4200,
+        deliveryTimeDays: 1,
+        paymentTerms: '7 Days Credit',
+        totalAmount: 1319086,
+        isSelected: false
+      }
+    ]
+  }
+];
+
+export const MOCK_RFQ_RECORDS = MOCK_RFQS;
+
+// 9. PURCHASE ORDERS
+export const MOCK_PURCHASE_ORDERS: PurchaseOrderItem[] = [
+  {
+    id: 'PO-9041',
+    poNumber: 'PO-9041',
+    supplierId: 'SUPP-002',
+    supplierName: 'Sandvik Mining Spare Parts',
+    date: '21 Feb 2026',
+    expectedDelivery: '27 Feb 2026',
+    productName: 'Cone Crusher Manganese Mantle & Concave',
+    quantity: 2,
+    unit: 'Piece',
+    rate: 85000,
+    discount: 0,
+    taxPct: 18,
+    freight: 5000,
+    total: 205600,
+    paymentTerms: '30 Days Net Credit',
+    deliveryLocation: 'Wayanad VSI Crusher Store Yard',
+    status: 'RECEIVED',
+    notes: 'Warranty certificate and material test analysis test sheet must accompany shipment.'
+  },
+  {
+    id: 'PO-9042',
+    poNumber: 'PO-9042',
+    supplierId: 'SUPP-001',
+    supplierName: 'Bharat Petroleum Yard Depot',
+    date: '22 Feb 2026',
+    expectedDelivery: '24 Feb 2026',
+    productName: 'Bulk High-Speed Diesel (HSD Tanker)',
+    quantity: 12000,
+    unit: 'Litre',
+    rate: 92,
+    discount: 0,
+    taxPct: 18,
+    freight: 4500,
+    total: 1307220,
+    paymentTerms: '15 Days Credit',
+    deliveryLocation: 'Calicut Central Depot Tank Yard',
+    status: 'SENT',
+    notes: 'Density testing at 15°C and hydrometer verification mandatory before tank discharge.'
+  },
+  {
+    id: 'PO-9043',
+    poNumber: 'PO-9043',
+    supplierId: 'SUPP-003',
+    supplierName: 'Solar Explosives India Ltd',
+    date: '19 Feb 2026',
+    expectedDelivery: '23 Feb 2026',
+    productName: 'Commercial Blasting Cartridges & Detonators',
+    quantity: 400,
+    unit: 'Kg',
+    rate: 185,
+    discount: 0,
+    taxPct: 18,
+    freight: 3000,
+    total: 90320,
+    paymentTerms: 'Advance / CAD',
+    deliveryLocation: 'Meppadi PESO Licensed Magazine',
+    status: 'APPROVED',
+    notes: 'Licensed explosive van escort required; offloading under Blaster Certificate holder.'
+  },
+  {
+    id: 'PO-9044',
+    poNumber: 'PO-9044',
+    supplierId: 'SUPP-004',
+    supplierName: 'JK Tyre Commercial Fleet Hub',
+    date: '18 Feb 2026',
+    expectedDelivery: '20 Feb 2026',
+    productName: 'Heavy Radial Tipper Tyres (10.00R20)',
+    quantity: 8,
+    unit: 'Piece',
+    rate: 24000,
+    discount: 5000,
+    taxPct: 28,
+    freight: 2500,
+    total: 241940,
+    paymentTerms: '30 Days Credit',
+    deliveryLocation: 'Calicut Fleet Workshop',
+    status: 'RECEIVED',
+    notes: 'Tube + Flap combo included.'
+  }
+];
+
+// 10. GRN (GOODS RECEIPT NOTE)
+export const MOCK_GRNS: GrnRecord[] = [
+  {
+    id: 'GRN-701',
+    grnNumber: 'GRN-2026-088',
+    poNumber: 'PO-9041',
+    supplierName: 'Sandvik Mining Spare Parts',
+    vehicleNumber: 'KA-04-E-8821',
+    driverName: 'Manjunath Gowda',
+    date: '23 Feb 2026',
+    materialName: 'Cone Crusher Manganese Mantle & Concave',
+    orderedQty: 2,
+    receivedQty: 2,
+    rejectedQty: 0,
+    acceptedQty: 2,
+    unit: 'Piece',
+    batchNumber: 'SVK-MN18-B9921',
+    qualityCheck: 'PASSED',
+    remarks: 'Visual dimensional check and ultrasonic testing certificate verified by mechanical supervisor.',
+    receivedBy: 'Harikrishnan (Store Manager)',
+    stockUpdated: true
+  },
+  {
+    id: 'GRN-702',
+    grnNumber: 'GRN-2026-089',
+    poNumber: 'PO-9044',
+    supplierName: 'JK Tyre Commercial Fleet Hub',
+    vehicleNumber: 'KL-11-S-4402',
+    driverName: 'Abdul Salam',
+    date: '20 Feb 2026',
+    materialName: 'Heavy Radial Tipper Tyres (10.00R20)',
+    orderedQty: 8,
+    receivedQty: 8,
+    rejectedQty: 1,
+    acceptedQty: 7,
+    unit: 'Piece',
+    batchNumber: 'JK-RAD-2601',
+    qualityCheck: 'CONDITIONAL',
+    remarks: '1 tyre had bead packaging cut; rejected on spot and returned to driver for debit note.',
+    receivedBy: 'Harikrishnan (Store Manager)',
+    stockUpdated: true
+  }
+];
+
+export const MOCK_GRN_RECORDS = MOCK_GRNS;
+
+// 11. PURCHASE BILLS
+export const MOCK_PURCHASE_BILLS: PurchaseBillRecord[] = [
+  {
+    id: 'PB-601',
+    billNumber: 'PB-2026-052',
+    supplierName: 'Sandvik Mining Spare Parts',
+    grnNumber: 'GRN-2026-088',
+    poNumber: 'PO-9041',
+    billDate: '23 Feb 2026',
+    dueDate: '25 Mar 2026',
+    taxableAmount: 170000,
+    discount: 0,
+    gstAmount: 30600,
+    otherCharges: 5000,
+    roundOff: 0,
+    grandTotal: 205600,
+    paymentTerms: '30 Days Net Credit',
+    paidAmount: 20600,
+    balanceAmount: 185000,
+    status: 'PARTIALLY_PAID'
+  },
+  {
+    id: 'PB-602',
+    billNumber: 'PB-2026-051',
+    supplierName: 'Bharat Petroleum Yard Depot',
+    grnNumber: 'GRN-2026-084',
+    poNumber: 'PO-8998',
+    billDate: '15 Feb 2026',
+    dueDate: '02 Mar 2026',
+    taxableAmount: 920000,
+    discount: 0,
+    gstAmount: 165600,
+    otherCharges: 4500,
+    roundOff: 0,
+    grandTotal: 1090100,
+    paymentTerms: '15 Days Credit',
+    paidAmount: 640100,
+    balanceAmount: 450000,
+    status: 'PARTIALLY_PAID'
+  }
+];
+
+// 12. PURCHASE RETURNS
+export const MOCK_PURCHASE_RETURNS: PurchaseReturnRecord[] = [
+  {
+    id: 'PRET-101',
+    returnNumber: 'PRTN-2026-004',
+    billNumber: 'PB-2026-048',
+    supplierName: 'JK Tyre Commercial Fleet Hub',
+    productName: 'Heavy Radial Tipper Tyre (10.00R20)',
+    quantity: 1,
+    unit: 'Piece',
+    reason: 'Damaged bead rubber during handling prior to yard delivery.',
+    debitNoteNumber: 'DN-2026-012',
+    amount: 30720,
+    date: '20 Feb 2026',
+    status: 'ADJUSTED_IN_LEDGER'
+  }
+];
+
+// 13. QUOTATIONS (SALES)
+export const MOCK_QUOTATIONS: QuotationRecord[] = [
+  {
+    id: 'QUOT-301',
+    quotationNumber: 'QUOT-2026-094',
+    customerName: 'Sobha Developers Ltd',
+    date: '21 Feb 2026',
+    validityDate: '07 Mar 2026',
+    productName: '20mm Concrete Aggregates & M-Sand Package',
+    quantity: 1200,
+    unit: 'Ton',
+    rate: 810,
+    discount: 24000,
+    gstAmount: 47400,
+    deliveryCharge: 36000,
+    grandTotal: 1031400,
+    paymentTerms: '30 Days Net Credit',
+    notes: 'Includes direct tipper delivery to Thrissur Sobha City Commercial site.',
+    termsAndConditions: 'Rates valid for 15 days; unloading delay beyond 45 mins charged at ₹500/hr.',
+    status: 'ACCEPTED'
+  },
+  {
+    id: 'QUOT-302',
+    quotationNumber: 'QUOT-2026-095',
+    customerName: 'Calicut Heritage Villa Builders',
+    date: '22 Feb 2026',
+    validityDate: '10 Mar 2026',
+    productName: 'Machine Cut Dressed Laterite Stone (30×20×15 cm)',
+    quantity: 5000,
+    unit: 'Piece',
+    rate: 45,
+    discount: 5000,
+    gstAmount: 11000,
+    deliveryCharge: 12500,
+    grandTotal: 243500,
+    paymentTerms: '50% Advance, Balance on Delivery',
+    notes: 'Grade A sharp edge blocks sourced from Calicut Laterite Pit #1.',
+    termsAndConditions: 'Stacking at site ground floor only.',
+    status: 'SENT'
+  }
+];
+
+// 14. SALES ORDERS
+export const MOCK_SALES_ORDERS: SalesOrderItem[] = [
+  {
+    id: 'SO-501',
+    orderNumber: 'SO-2026-112',
+    customerName: 'Sobha Developers Ltd',
+    quotationNumber: 'QUOT-2026-094',
+    orderDate: '22 Feb 2026',
+    deliveryDate: '26 Feb 2026',
+    productName: '20mm Concrete Aggregates',
+    quantity: 600,
+    unit: 'Ton',
+    rate: 780,
+    discount: 12000,
+    taxAmount: 22800,
+    grandTotal: 478800,
+    deliveryAddress: 'Sobha City Commercial Hub, Thrissur 680553',
+    vehicleRequirement: '10-Wheel Heavy Tipper (24 MT Capacity)',
+    paymentTerms: '30 Days Net Credit',
+    advanceAmount: 100000,
+    balanceAmount: 378800,
+    status: 'CONFIRMED'
+  },
+  {
+    id: 'SO-502',
+    orderNumber: 'SO-2026-113',
+    customerName: 'Calicut Heritage Villa Builders',
+    quotationNumber: 'QUOT-2026-095',
+    orderDate: '23 Feb 2026',
+    deliveryDate: '25 Feb 2026',
+    productName: 'Dressed Laterite Stone (30×20×15 cm)',
+    quantity: 2500,
+    unit: 'Piece',
+    rate: 45,
+    discount: 2500,
+    taxAmount: 5500,
+    grandTotal: 115500,
+    deliveryAddress: 'Silver Hills Road, Chevayur, Calicut 673017',
+    vehicleRequirement: '6-Wheel Medium Tipper (1,250 Pcs/Trip)',
+    paymentTerms: 'Advance / CAD',
+    advanceAmount: 50000,
+    balanceAmount: 65500,
+    status: 'PROCESSING'
+  },
+  {
+    id: 'SO-503',
+    orderNumber: 'SO-2026-114',
+    customerName: 'Malabar Highway Infrastructure',
+    orderDate: '21 Feb 2026',
+    deliveryDate: '24 Feb 2026',
+    productName: 'Manufactured Sand (Zone II)',
+    quantity: 800,
+    unit: 'Ton',
+    rate: 820,
+    discount: 16000,
+    taxAmount: 32000,
+    grandTotal: 672000,
+    deliveryAddress: 'NH-66 Project Camp, Vengalam Bypass, Calicut',
+    vehicleRequirement: '12-Wheel Multi-Axle Tipper',
+    paymentTerms: '45 Days Milestone Billing',
+    advanceAmount: 0,
+    balanceAmount: 672000,
+    status: 'READY_FOR_DISPATCH'
+  }
+];
+
+// 15. DELIVERIES
+export const MOCK_DELIVERIES: DeliveryRecord[] = [
+  {
+    id: 'DEL-201',
+    deliveryNumber: 'DEL-2026-140',
+    salesOrderNumber: 'SO-2026-112',
+    customerName: 'Sobha Developers Ltd',
+    productName: '20mm Concrete Aggregates',
+    quantity: 140,
+    unit: 'Ton',
+    vehicleNumber: 'KL-11-BH-9921',
+    driverName: 'Raveendran K.',
+    driverPhone: '+91 98471 22998',
+    loadingLocation: 'Crusher Weighbridge #1',
+    destination: 'Sobha City Commercial Hub, Thrissur',
+    dispatchDate: 'Today 08:30 AM',
+    expectedDelivery: 'Today 01:00 PM',
+    actualDelivery: 'Today 12:45 PM',
+    gatePassNumber: 'GP-2026-0991',
+    proofOfDelivery: true,
+    status: 'COMPLETED'
+  },
+  {
+    id: 'DEL-202',
+    deliveryNumber: 'DEL-2026-141',
+    salesOrderNumber: 'SO-2026-113',
+    customerName: 'Calicut Heritage Villa Builders',
+    productName: 'Dressed Laterite Stone',
+    quantity: 1250,
+    unit: 'Piece',
+    vehicleNumber: 'KL-11-CE-1004',
+    driverName: 'Sujith Kumar',
+    driverPhone: '+91 94462 88123',
+    loadingLocation: 'Calicut Laterite Concession #1',
+    destination: 'Silver Hills Road, Chevayur, Calicut',
+    dispatchDate: 'Today 09:45 AM',
+    expectedDelivery: 'Today 11:30 AM',
+    gatePassNumber: 'GP-2026-0992',
+    proofOfDelivery: false,
+    status: 'IN_TRANSIT'
+  }
+];
+
+// 16. INVOICES
+export const MOCK_INVOICES: InvoiceRecord[] = [
+  {
+    id: 'INV-101',
+    invoiceNumber: 'INV-2026-081',
+    customerName: 'Sobha Developers Ltd',
+    orderNumber: 'SO-2026-112',
+    date: '23 Feb 2026',
+    dueDate: '25 Mar 2026',
+    invoiceType: 'TAX_INVOICE',
+    productName: '20mm Concrete Aggregates (140 MT)',
+    quantity: 140,
+    unit: 'Ton',
+    taxableValue: 104000,
+    discount: 0,
+    gstAmount: 5200,
+    roundOff: 0,
+    grandTotal: 109200,
+    paidAmount: 0,
+    balanceAmount: 109200,
+    paymentStatus: 'UNPAID'
+  },
+  {
+    id: 'INV-102',
+    invoiceNumber: 'INV-2026-082',
+    customerName: 'Malabar Highway Infrastructure',
+    orderNumber: 'SO-2026-110',
+    date: '22 Feb 2026',
+    dueDate: '08 Apr 2026',
+    invoiceType: 'TAX_INVOICE',
+    productName: 'Manufactured Sand (Zone II - 220 MT)',
+    quantity: 220,
+    unit: 'Ton',
+    taxableValue: 178095,
+    discount: 0,
+    gstAmount: 8905,
+    roundOff: 0,
+    grandTotal: 187000,
+    paidAmount: 50000,
+    balanceAmount: 137000,
+    paymentStatus: 'PARTIALLY_PAID'
+  },
+  {
+    id: 'INV-103',
+    invoiceNumber: 'INV-2026-083',
+    customerName: 'Calicut Heritage Villa Builders',
+    orderNumber: 'SO-2026-108',
+    date: '20 Feb 2026',
+    dueDate: '07 Mar 2026',
+    invoiceType: 'TAX_INVOICE',
+    productName: 'Dressed Laterite Stone (1,400 Stones)',
+    quantity: 1400,
+    unit: 'Piece',
+    taxableValue: 60000,
+    discount: 0,
+    gstAmount: 3000,
+    roundOff: 0,
+    grandTotal: 63000,
+    paidAmount: 63000,
+    balanceAmount: 0,
+    paymentStatus: 'PAID'
+  },
+  {
+    id: 'INV-104',
+    invoiceNumber: 'INV-2026-077',
+    customerName: 'Malabar Highway Infrastructure',
+    orderNumber: 'SO-2026-098',
+    date: '10 Jan 2026',
+    dueDate: '25 Jan 2026',
+    invoiceType: 'TAX_INVOICE',
+    productName: 'Granite Rubble (Soling 40 Loads)',
+    quantity: 40,
+    unit: 'Load',
+    taxableValue: 420000,
+    discount: 0,
+    gstAmount: 21000,
+    roundOff: 0,
+    grandTotal: 441000,
+    paidAmount: 0,
+    balanceAmount: 441000,
+    paymentStatus: 'OVERDUE'
+  }
+];
+
+// 17. PAYMENTS
+export const MOCK_PAYMENTS: PaymentRecord[] = [
+  {
+    id: 'PAY-401',
+    paymentNumber: 'RCPT-2026-104',
+    paymentType: 'CUSTOMER_PAYMENT',
+    relatedInvoiceOrBill: 'INV-2026-083',
+    partyName: 'Calicut Heritage Villa Builders',
+    partyType: 'CUSTOMER',
+    amount: 63000,
+    mode: 'UPI',
+    referenceNo: 'UPI/308192019283',
+    date: 'Today 11:20 AM',
+    bankAccount: 'HDFC Current A/c (***182)',
+    status: 'COMPLETED',
+    notes: 'Immediate payment against delivery challan DEL-2026-138'
+  },
+  {
+    id: 'PAY-402',
+    paymentNumber: 'RCPT-2026-103',
+    paymentType: 'CUSTOMER_ADVANCE',
+    relatedInvoiceOrBill: 'SO-2026-112',
+    partyName: 'Sobha Developers Ltd',
+    partyType: 'CUSTOMER',
+    amount: 100000,
+    mode: 'RTGS',
+    referenceNo: 'RTGS-SBIN992100341',
+    date: '22 Feb 2026',
+    bankAccount: 'SBI Industrial Branch (***621)',
+    status: 'COMPLETED',
+    notes: 'Advance booking for 600 MT 20mm concrete aggregate supply.'
+  },
+  {
+    id: 'PAY-403',
+    paymentNumber: 'PMT-2026-078',
+    paymentType: 'SUPPLIER_PAYMENT',
+    relatedInvoiceOrBill: 'PB-2026-051',
+    partyName: 'Bharat Petroleum Yard Depot',
+    partyType: 'SUPPLIER',
+    amount: 640100,
+    mode: 'NEFT',
+    referenceNo: 'NEFT-HDFC22019942',
+    date: '20 Feb 2026',
+    bankAccount: 'HDFC Current A/c (***182)',
+    status: 'COMPLETED',
+    notes: 'Partial settlement for bulk diesel tanker supply.'
+  }
+];
+
+// 18. SALES RETURNS & CREDIT NOTES
+export const MOCK_SALES_RETURNS: SalesReturnRecord[] = [
+  {
+    id: 'SRET-01',
+    returnNumber: 'SRTN-2026-002',
+    invoiceNumber: 'INV-2026-079',
+    customerName: 'Calicut Heritage Villa Builders',
+    productName: 'Dressed Laterite Stone',
+    originalQty: 1000,
+    returnedQty: 50,
+    unit: 'Piece',
+    reason: 'Corner transit breakage in 50 pieces due to rough quarry access road.',
+    condition: 'DOWNGRADED',
+    creditNoteNumber: 'CN-2026-008',
+    creditAmount: 2250,
+    date: '19 Feb 2026',
+    status: 'ADJUSTED_IN_LEDGER'
+  }
+];
+
+export const MOCK_CREDIT_DEBIT_NOTES: CreditDebitNoteRecord[] = [
+  {
+    id: 'CDN-01',
+    noteNumber: 'CN-2026-008',
+    type: 'CREDIT_NOTE',
+    originalDocNumber: 'INV-2026-079',
+    partyName: 'Calicut Heritage Villa Builders',
+    partyType: 'CUSTOMER',
+    reason: 'Transit breakage replacement credit for 50 dressed stones',
+    taxableAmount: 2142.86,
+    taxAmount: 107.14,
+    totalAmount: 2250,
+    date: '19 Feb 2026',
+    status: 'APPLIED_TO_LEDGER'
+  },
+  {
+    id: 'CDN-02',
+    noteNumber: 'DN-2026-012',
+    type: 'DEBIT_NOTE',
+    originalDocNumber: 'PB-2026-048',
+    partyName: 'JK Tyre Commercial Fleet Hub',
+    partyType: 'SUPPLIER',
+    reason: 'Bead packaging cut in 1 heavy radial tipper tyre (returned to depot)',
+    taxableAmount: 24000,
+    taxAmount: 6720,
+    totalAmount: 30720,
+    date: '20 Feb 2026',
+    status: 'APPLIED_TO_LEDGER'
+  }
+];
+
+// 19. UNIFIED ORDER MANAGEMENT (Direct ERP + 10 Platforms Bridge)
+export const MOCK_UNIFIED_ORDERS: UnifiedOrderRecord[] = [
+  {
+    id: 'UORD-101',
+    sourcePlatform: 'DIRECT_ERP',
+    customerName: 'Sobha Developers Ltd',
+    productName: '20mm Concrete Aggregates',
+    quantity: 600,
+    unit: 'Ton',
+    amount: 478800,
+    status: 'CONFIRMED',
+    vehicleNumber: 'KL-11-BH-9921',
+    deliveryDate: '26 Feb 2026',
+    paymentStatus: 'PARTIAL',
+    createdDate: '22 Feb 2026'
+  },
+  {
+    id: 'UORD-102',
+    sourcePlatform: 'BUILDING_MATERIALS_ECOMMERCE',
+    customerName: 'Calicut Heritage Villa Builders',
+    productName: 'Machine Cut Dressed Laterite Stone',
+    quantity: 2500,
+    unit: 'Piece',
+    amount: 115500,
+    status: 'IN_PRODUCTION',
+    vehicleNumber: 'KL-11-CE-1004',
+    deliveryDate: '25 Feb 2026',
+    paymentStatus: 'PARTIAL',
+    createdDate: '23 Feb 2026'
+  },
+  {
+    id: 'UORD-103',
+    sourcePlatform: 'QUARRY_MANAGEMENT',
+    customerName: 'Wayanad Hill Highway Syndicate',
+    productName: 'Granite Soling Rubble',
+    quantity: 350,
+    unit: 'Ton',
+    amount: 175000,
+    status: 'DISPATCHING',
+    vehicleNumber: 'KL-11-BH-9922',
+    deliveryDate: '24 Feb 2026',
+    paymentStatus: 'UNPAID',
+    createdDate: '21 Feb 2026'
+  },
+  {
+    id: 'UORD-104',
+    sourcePlatform: 'CRUSHER_MANAGEMENT',
+    customerName: 'Malabar Highway Infrastructure',
+    productName: 'Manufactured Sand (Zone II)',
+    quantity: 800,
+    unit: 'Ton',
+    amount: 672000,
+    status: 'CONFIRMED',
+    vehicleNumber: 'KL-11-BL-4019',
+    deliveryDate: '24 Feb 2026',
+    paymentStatus: 'UNPAID',
+    createdDate: '21 Feb 2026'
+  },
+  {
+    id: 'UORD-105',
+    sourcePlatform: 'CONTRACT_JOB',
+    customerName: 'PWD Chundale-Meppadi Road Package',
+    productName: 'Wet Mix Macadam (WMM) Base Metal',
+    quantity: 450,
+    unit: 'Ton',
+    amount: 382500,
+    status: 'DELIVERED',
+    vehicleNumber: 'KL-11-BH-8840',
+    deliveryDate: '20 Feb 2026',
+    paymentStatus: 'PAID',
+    createdDate: '18 Feb 2026'
+  }
+];
+
+// 20. GATE PASSES (QR CODE READY)
+export const MOCK_GATE_PASSES: CommerceGatePass[] = [
+  {
+    id: 'GP-001',
+    gatePassNumber: 'GP-2026-0991',
+    dateTime: 'Today 08:30 AM',
+    type: 'OUTGOING',
+    sourcePlatform: 'CRUSHER',
+    partyName: 'Sobha Developers Ltd',
+    orderNumber: 'SO-2026-112',
+    invoiceNumber: 'INV-2026-081',
+    productName: '20mm Concrete Aggregates',
+    quantity: 140,
+    unit: 'Ton',
+    vehicleNumber: 'KL-11-BH-9921',
+    driverName: 'Raveendran K.',
+    driverPhone: '+91 98471 22998',
+    loadNumber: 'WEIGH-2026-8812',
+    destination: 'Sobha City Commercial Hub, Thrissur',
+    authorizedBy: 'K. Sukumaran (Security / Dispatch)',
+    qrPayload: 'MINETRIX-GP:GP-2026-0991|VEH:KL-11-BH-9921|WT:140MT|DEST:THRS|EXP:2026-02-23T18:00',
+    status: 'CLEARED_GATE'
+  },
+  {
+    id: 'GP-002',
+    gatePassNumber: 'GP-2026-0992',
+    dateTime: 'Today 09:45 AM',
+    type: 'OUTGOING',
+    sourcePlatform: 'QUARRY',
+    partyName: 'Calicut Heritage Villa Builders',
+    orderNumber: 'SO-2026-113',
+    productName: 'Dressed Laterite Stone',
+    quantity: 1250,
+    unit: 'Piece',
+    vehicleNumber: 'KL-11-CE-1004',
+    driverName: 'Sujith Kumar',
+    driverPhone: '+91 94462 88123',
+    loadNumber: 'COUNT-2026-4411',
+    destination: 'Silver Hills Road, Chevayur, Calicut',
+    authorizedBy: 'R. K. Pillai (Gate Supervisor)',
+    qrPayload: 'MINETRIX-GP:GP-2026-0992|VEH:KL-11-CE-1004|QTY:1250PCS|DEST:CHEV|EXP:2026-02-23T16:00',
+    status: 'ACTIVE'
+  },
+  {
+    id: 'GP-003',
+    gatePassNumber: 'GP-2026-0993',
+    dateTime: 'Today 10:15 AM',
+    type: 'INCOMING',
+    sourcePlatform: 'DEPOT',
+    partyName: 'Bharat Petroleum Yard Depot',
+    orderNumber: 'PO-9042',
+    productName: 'Bulk High-Speed Diesel (HSD Tanker)',
+    quantity: 12000,
+    unit: 'Litre',
+    vehicleNumber: 'KL-08-AU-9912',
+    driverName: 'Biju Varghese',
+    driverPhone: '+91 94472 11982',
+    loadNumber: 'BPCL-TANKER-9902',
+    destination: 'Calicut Central Depot Tank Yard',
+    authorizedBy: 'Harikrishnan (Store Manager)',
+    qrPayload: 'MINETRIX-GP:GP-2026-0993|INCOMING|VEH:KL-08-AU-9912|QTY:12000L|DEPOT',
+    status: 'ACTIVE'
+  }
+];
+
+// 21. CUSTOMER LEDGER ENTRIES
+export const MOCK_CUSTOMER_LEDGER: LedgerEntry[] = [
+  { id: 'LED-C1', date: '01 Jan 2026', docType: 'ADJUSTMENT', docNumber: 'OB-2026', description: 'Opening Balance (Brought Forward)', debit: 250000, credit: 0, balance: 250000 },
+  { id: 'LED-C2', date: '15 Jan 2026', docType: 'INVOICE', docNumber: 'INV-2026-012', description: 'Supply of 20mm Aggregates (250 MT)', debit: 195000, credit: 0, balance: 445000 },
+  { id: 'LED-C3', date: '25 Jan 2026', docType: 'PAYMENT', docNumber: 'RCPT-2026-022', description: 'Payment received via RTGS (SBI)', debit: 0, credit: 200000, balance: 245000 },
+  { id: 'LED-C4', date: '10 Feb 2026', docType: 'INVOICE', docNumber: 'INV-2026-045', description: 'Supply of M-Sand Zone II (300 MT)', debit: 243000, credit: 0, balance: 488000 },
+  { id: 'LED-C5', date: '18 Feb 2026', docType: 'CREDIT_NOTE', docNumber: 'CN-2026-004', description: 'Special contract volume rebate', debit: 0, credit: 8000, balance: 480000 },
+  { id: 'LED-C6', date: '22 Feb 2026', docType: 'ADVANCE', docNumber: 'ADV-2026-009', description: 'Advance payment for Order SO-2026-112', debit: 0, credit: 100000, balance: 380000 }
+];
+
+// 22. SUPPLIER LEDGER ENTRIES
+export const MOCK_SUPPLIER_LEDGER: LedgerEntry[] = [
+  { id: 'LED-S1', date: '01 Jan 2026', docType: 'ADJUSTMENT', docNumber: 'OB-2026', description: 'Opening Balance Payable (Brought Forward)', debit: 0, credit: 200000, balance: 200000 },
+  { id: 'LED-S2', date: '15 Jan 2026', docType: 'BILL', docNumber: 'PB-2026-014', description: 'Bulk HSD Tanker Delivery (12,000 Ltrs)', debit: 0, credit: 1090100, balance: 1290100 },
+  { id: 'LED-S3', date: '25 Jan 2026', docType: 'PAYMENT', docNumber: 'PMT-2026-028', description: 'Bank Transfer via HDFC NEFT', debit: 600000, credit: 0, balance: 690100 },
+  { id: 'LED-S4', date: '10 Feb 2026', docType: 'DEBIT_NOTE', docNumber: 'DN-2026-003', description: 'Shortage and temperature compensation credit', debit: 12000, credit: 0, balance: 678100 },
+  { id: 'LED-S5', date: '20 Feb 2026', docType: 'PAYMENT', docNumber: 'PMT-2026-078', description: 'Weekly settlement against diesel billing', debit: 228100, credit: 0, balance: 450000 }
+];
+
+// 23. COMMERCE & TRADE MIS REPORTS (16 Enterprise Reports)
+export const MOCK_COMMERCE_REPORTS: CommerceReportDefinition[] = [
+  { id: 'REP-01', code: 'SAL-REG-01', title: 'Daily Sales Register & Dispatch Log', category: 'SALES', frequency: 'DAILY', description: 'Detailed aggregate tonnage dispatched with vehicle number, invoice value and tax split.' },
+  { id: 'REP-02', code: 'SAL-PRD-02', title: 'Product-wise Sales & Realization Report', category: 'SALES', frequency: 'MONTHLY', description: 'Average selling rate per ton across 20mm, 40mm, M-Sand, P-Sand and Laterite stones.' },
+  { id: 'REP-03', code: 'SAL-CST-03', title: 'Customer Turnover & Contribution Analysis', category: 'SALES', frequency: 'MONTHLY', description: 'Top 20 builders by gross revenue, volume discounts and net realized margin.' },
+  { id: 'REP-04', code: 'PUR-REG-01', title: 'Purchase Bill & Expense Register', category: 'PURCHASE', frequency: 'DAILY', description: 'Vendor invoices booked for fuel, crusher spares, conveyor belts and blasting cartridges.' },
+  { id: 'REP-05', code: 'PUR-VND-02', title: 'Vendor Performance & Rate Variance Report', category: 'PURCHASE', frequency: 'MONTHLY', description: 'Comparative purchase rates vs agreement benchmarks and delivery punctuality.' },
+  { id: 'REP-06', code: 'REC-AGE-01', title: 'Receivables Aging Schedule (30-60-90+ Days)', category: 'RECEIVABLES', frequency: 'WEEKLY', description: 'Outstanding customer balances bucketed by payment terms with overdue alerts.' },
+  { id: 'REP-07', code: 'REC-CRD-02', title: 'Customer Credit Limit Breach Audit', category: 'RECEIVABLES', frequency: 'DAILY', description: 'Contractors exceeding assigned credit ceiling or having bills overdue beyond 45 days.' },
+  { id: 'REP-08', code: 'PAY-AGE-01', title: 'Payables Aging & Vendor Due Report', category: 'PAYABLES', frequency: 'WEEKLY', description: 'Scheduled payments for BPCL, Sandvik and explosives suppliers to optimize cashflow.' },
+  { id: 'REP-09', code: 'TAX-GSTR1', title: 'GSTR-1 Outward Supplies Annexure', category: 'TAXATION', frequency: 'MONTHLY', description: 'B2B and B2C sales summary with HSN 2517/2505 details, taxable value, CGST, SGST & IGST.' },
+  { id: 'REP-10', code: 'TAX-GSTR3B', title: 'GSTR-3B Input Tax Credit (ITC) Reconciliation', category: 'TAXATION', frequency: 'MONTHLY', description: 'Eligible ITC on capital crusher parts and transport diesel vs outward tax liability.' },
+  { id: 'REP-11', code: 'TAX-EWAY', title: 'e-Way Bill Reconciliation & Audit Log', category: 'TAXATION', frequency: 'WEEKLY', description: 'Validation of generated e-Way bill numbers against actual pithead gate pass clearance.' },
+  { id: 'REP-12', code: 'INV-STK-01', title: 'Quarry & Crusher Stock Valuation Report', category: 'INVENTORY', frequency: 'WEEKLY', description: 'Physical stockpile volume estimation vs book inventory with weighted average cost.' },
+  { id: 'REP-13', code: 'INV-MOV-02', title: 'Slow-Moving & Critical Spares Inventory', category: 'INVENTORY', frequency: 'MONTHLY', description: 'Cone crusher manganese liners, bearings and electrical switchgear aging in depot.' },
+  { id: 'REP-14', code: 'AUD-RAT-01', title: 'Rate Override & Special Discount Audit', category: 'AUDIT', frequency: 'WEEKLY', description: 'Dispatches where billing rate differed from master product tariff or agreement rate.' },
+  { id: 'REP-15', code: 'AUD-WT-02', title: 'Weighbridge Gross-Tare-Net Discrepancy Log', category: 'AUDIT', frequency: 'DAILY', description: 'Vehicles with tare weight variation >2% from registered tare baseline.' },
+  { id: 'REP-16', code: 'FLF-GATE-01', title: 'Gate Pass Clearance & Vehicle Turnaround MIS', category: 'SALES', frequency: 'DAILY', description: 'Average truck dwell time from weighbridge gross weighing to security gate exit.' }
+];

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { OFFICIAL_RZ_ICON_SVG, OFFICIAL_RZ_LOGO_SVG } from '../services/brandingService';
 
 interface RZLogoProps {
@@ -7,6 +7,7 @@ interface RZLogoProps {
   className?: string;
   showText?: boolean;
   subText?: string;
+  useImage?: boolean;
 }
 
 export const RZLogo: React.FC<RZLogoProps> = ({
@@ -14,26 +15,41 @@ export const RZLogo: React.FC<RZLogoProps> = ({
   size = 'standard',
   className = '',
   showText = true,
-  subText
+  subText,
+  useImage = true
 }) => {
-  // Height requirements: 24px mobile (h-6 w-6), 32px desktop (sm:h-8 sm:w-8)
+  const [imgError, setImgError] = useState(false);
+
+  // Height requirements: 24px-28px mobile, 32px-36px desktop
   const logoDimensions = {
-    standard: 'h-6 w-6 sm:h-8 sm:w-8', // 24px mobile, 32px desktop
-    sm: 'h-5 w-5 sm:h-6 sm:w-6',       // 20px / 24px
-    md: 'h-6 w-6 sm:h-8 sm:w-8',       // 24px / 32px
-    lg: 'h-8 w-8 sm:h-10 sm:w-10',     // 32px / 40px
-    xl: 'h-10 w-10 sm:h-14 sm:w-14'    // 40px / 56px
+    standard: 'h-7 w-7 sm:h-8 sm:w-8', // 28px mobile, 32px desktop
+    sm: 'h-6 w-6 sm:h-7 sm:w-7',       // 24px / 28px
+    md: 'h-7 w-7 sm:h-8 sm:w-8',       // 28px / 32px
+    lg: 'h-9 w-9 sm:h-11 sm:w-11',     // 36px / 44px
+    xl: 'h-12 w-12 sm:h-16 sm:w-16'    // 48px / 64px
   };
 
   const svgToUse = variant === 'full' ? OFFICIAL_RZ_LOGO_SVG : OFFICIAL_RZ_ICON_SVG;
 
   return (
     <div className={`flex items-center gap-2.5 sm:gap-3 ${className}`}>
-      {/* Official Uploaded RZ Logo Mark aligned on left */}
-      <div
-        className={`${logoDimensions[size]} shrink-0 drop-shadow-[0_0_12px_rgba(245,158,11,0.3)] transition-transform hover:scale-105`}
-        dangerouslySetInnerHTML={{ __html: svgToUse }}
-      />
+      {/* Official Executive Gold App Icon Emblem */}
+      {useImage && !imgError ? (
+        <div className={`${logoDimensions[size]} shrink-0 relative rounded-xl overflow-hidden shadow-lg shadow-amber-500/25 border border-amber-400/50 transition-transform hover:scale-105 group`}>
+          <img
+            src="/app-logo.jpg"
+            alt="RZ® Minetrix BOS Logo"
+            className="w-full h-full object-cover object-center group-hover:brightness-110 transition duration-300"
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+          />
+        </div>
+      ) : (
+        <div
+          className={`${logoDimensions[size]} shrink-0 drop-shadow-[0_0_12px_rgba(245,158,11,0.3)] transition-transform hover:scale-105`}
+          dangerouslySetInnerHTML={{ __html: svgToUse }}
+        />
+      )}
 
       {showText && (
         <div className="flex flex-col justify-center">

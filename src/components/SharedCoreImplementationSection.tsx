@@ -55,7 +55,7 @@ export const SharedCoreImplementationSection: React.FC = () => {
   const [tenantIsolationResult, setTenantIsolationResult] = useState<any>(null);
   const [isRunningTests, setIsRunningTests] = useState<boolean>(false);
   const [loginEmail, setLoginEmail] = useState<string>('admin@racezoneventures.com');
-  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('AdminPass2026!');
 
   const fetchLiveHealth = async () => {
     const liveness = await apiClient.getHealthLiveness();

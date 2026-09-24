@@ -904,11 +904,28 @@ class RzChatService {
 
   // --- USER SYSTEM & AUTH ---
   public getCurrentUserId(): string {
-    return this.currentUserId;
+    return this.currentUserId || 'USR-1001';
   }
 
   public getCurrentUser(): ChatUser {
-    return this.users.find(u => u.id === this.currentUserId) || this.users[0];
+    const found = this.users.find(u => u.id === this.currentUserId) || this.users[0];
+    if (found) return found;
+    return {
+      id: this.currentUserId || 'USR-1001',
+      phoneNumber: '+91 98470 11001',
+      username: 'nafid_khan_bos',
+      displayName: 'Nafid Khan (Founding Director)',
+      profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      about: 'Founder & Enterprise Architect • RZ® Minetrix BOS Ecosystem',
+      accountStatus: 'active',
+      accountCategory: 'business_user',
+      location: 'Malappuram, Kerala',
+      onlineStatus: 'online',
+      lastSeen: new Date().toISOString(),
+      privacySettings: { lastSeen: 'everyone', profilePhoto: 'everyone', about: 'everyone', whoCanMessageMe: 'everyone' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: new Date().toISOString()
+    };
   }
 
   public setCurrentUserId(userId: string): void {

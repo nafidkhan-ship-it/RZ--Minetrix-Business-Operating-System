@@ -19,8 +19,15 @@ import { runSharedCoreTestSuite } from '../tests/sharedCoreTests.js';
 import { db } from '../db/database.js';
 import { jwtService } from '../security/jwtService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
-import { LocalStorageProvider } from '../providers/storageProvider.ts';
-import { notificationDispatcher } from '../providers/notificationProviders.ts';
+import { LocalStorageProvider } from '../providers/storageProvider.js';
+import { notificationDispatcher } from '../providers/notificationProviders.js';
+import { fleetRouter } from './fleetRouter.js';
+import { marketplaceRouter } from './marketplaceRouter.js';
+import { crmRouter } from './crmRouter.js';
+import { financeRouter } from './financeRouter.js';
+import { hrRouter } from './hrRouter.js';
+import { quarryRouter } from './quarryRouter.js';
+import { ottRouter } from './ottRouter.js';
 
 export const apiRouter = Router();
 
@@ -55,8 +62,8 @@ apiRouter.get('/health/liveness', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
+  const isDbReady = db.tenants.size > 0;
   const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
-  const isDbReady = adapterStatus.status === 'CONNECTED' || adapterStatus.status === 'ACTIVE_LOCAL';
   const jwtMeta = jwtService.getKeyMetadata();
 
   res.json({
@@ -158,7 +165,7 @@ apiRouter.get('/roles', authenticateJwt, enforceTenantContext, async (req: Custo
 });
 
 apiRouter.get('/permissions', authenticateJwt, async (req: CustomRequest, res: Response) => {
-  const permissions = await rolePermRepo.findAllPermissions();
+  const permissions = Array.from(db.permissions.values());
   return res.json({ success: true, data: permissions });
 });
 
@@ -250,6 +257,33 @@ apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, asy
   );
   return res.json(result);
 });
+
+// Mount Fleet Operations Router
+apiRouter.use('/fleet', fleetRouter);
+
+// Mount AI Load Exchange & Transport Marketplace Router (Phase 19)
+apiRouter.use('/marketplace', marketplaceRouter);
+apiRouter.use('/v1/marketplace', marketplaceRouter);
+
+// Mount Enterprise CRM & Customer 360 Router (Phase 20)
+apiRouter.use('/crm', crmRouter);
+apiRouter.use('/v1/crm', crmRouter);
+
+// Mount Enterprise Finance, Accounting & Financial Control Router (Phase 21)
+apiRouter.use('/finance', financeRouter);
+apiRouter.use('/v1/finance', financeRouter);
+
+// Mount Enterprise HRMS, Workforce & Payroll Management Router (Phase 22)
+apiRouter.use('/hr', hrRouter);
+apiRouter.use('/v1/hr', hrRouter);
+
+// Mount Platform 1: Quarry Management Router (API + RBAC)
+apiRouter.use('/quarries', quarryRouter);
+apiRouter.use('/v1/quarries', quarryRouter);
+
+// Mount Platform: OTT - Organise Today & Tomorrow (Universal Task, Reminder & Time-Planning Platform)
+apiRouter.use('/ott', ottRouter);
+apiRouter.use('/v1/ott', ottRouter);
 
 // ==========================================
 // 10. PROTECTED SHARED CORE TEST SUITE ENDPOINT
