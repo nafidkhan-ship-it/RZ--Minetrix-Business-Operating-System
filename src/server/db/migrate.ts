@@ -1,9 +1,18 @@
 import 'dotenv/config';
-import { readFileSync } from 'fs';
-import path from 'path';
 import { Pool } from 'pg';
+import { runPendingMigrations } from './migrationRunner.js';
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required to run migrations.');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const sql = readFileSync(path.join(process.cwd(), 'src/server/db/migrations/0003_phase2_postgres.sql'), 'utf8');
-try { await pool.query(sql); console.log('Phase 2 PostgreSQL schema and RLS are ready.'); } finally { await pool.end(); }
+try {
+  const report = await runPendingMigrations(pool);
+  if (!report.success) {
+    throw new Error(report.error || 'Migration runner failed.');
+  }
+  console.log(
+    `Migrations complete: ${report.executed.length} executed, ` +
+    `${report.skipped.length} already applied.`
+  );
+} finally {
+  await pool.end();
+}

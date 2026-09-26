@@ -1,6 +1,6 @@
 /**
  * RZ® MINETRIX BOS — Version-Controlled PostgreSQL Migration Runner
- * Guarantees migrations 0001-0008 execute strictly once in order,
+ * Guarantees every migration file executes strictly once in lexical order,
  * with distributed advisory lock protection against Cloud Run concurrent startups.
  */
 
@@ -61,7 +61,10 @@ export async function runPendingMigrations(pool: pg.Pool): Promise<MigrationRepo
       .sort((a, b) => a.localeCompare(b));
 
     for (const file of files) {
-      const version = file.split('_')[0] || file;
+      // Use the complete filename stem as the version. Prefix-only versions
+      // collide for files such as 0003_fleet_operations.sql and
+      // 0003_phase2_postgres.sql.
+      const version = file.replace(/\.sql$/, '');
       if (appliedSet.has(version)) {
         skipped.push(file);
         continue;

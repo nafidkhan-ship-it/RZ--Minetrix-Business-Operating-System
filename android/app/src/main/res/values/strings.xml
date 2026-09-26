@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RZ Minetrix</string>
+    <string name="title_activity_main">RZ Minetrix</string>
+    <string name="package_name">com.rzmining.bos</string>
+    <string name="custom_url_scheme">com.rzmining.bos</string>
+</resources>
