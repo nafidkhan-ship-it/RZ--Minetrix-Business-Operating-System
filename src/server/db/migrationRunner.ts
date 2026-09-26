@@ -1,12 +1,9 @@
-/**
- * RZ® MINETRIX BOS — Version-Controlled PostgreSQL Migration Runner
- * Guarantees every migration file executes strictly once in lexical order,
- * with distributed advisory lock protection against Cloud Run concurrent startups.
- */
-
 import fs from 'fs';
 import path from 'path';
 import pg from 'pg';
+
+const MIGRATIONS_DIR = path.join(process.cwd(), 'src', 'server', 'db', 'migrations');
+const MIGRATION_LOCK_KEY = 724501;
 
 export interface MigrationReport {
   success: boolean;
@@ -17,77 +14,77 @@ export interface MigrationReport {
   error?: string;
 }
 
-const MIGRATION_LOCK_ID = 987654321; // Dedicated integer ID for global schema migration lock
-
 export async function runPendingMigrations(pool: pg.Pool): Promise<MigrationReport> {
   const start = Date.now();
   const executed: string[] = [];
   const skipped: string[] = [];
-
   const client = await pool.connect();
-  try {
-    // 1. Acquire Distributed Advisory Lock
-    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
+  let totalAvailable = 0;
 
-    // 2. Ensure schema_migrations table exists
+  try {
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(64) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS core_schema_migrations (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) UNIQUE NOT NULL,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
     `);
 
-    // 3. Query existing applied migrations
     const appliedResult = await client.query<{ version: string }>(
-      'SELECT version FROM schema_migrations ORDER BY version ASC'
+      'SELECT version FROM schema_migrations'
     );
-    const appliedSet = new Set(appliedResult.rows.map(r => r.version));
-
-    // 4. Locate migration SQL files
-    const migrationsDir = path.join(process.cwd(), 'src', 'server', 'db', 'migrations');
-    if (!fs.existsSync(migrationsDir)) {
-      return {
-        success: true,
-        executed: [],
-        skipped: [],
-        totalAvailable: 0,
-        durationMs: Date.now() - start
-      };
+    const applied = new Set(appliedResult.rows.map((row) => row.version));
+    const coreAppliedResult = await client.query<{ filename: string }>(
+      'SELECT filename FROM core_schema_migrations'
+    );
+    for (const row of coreAppliedResult.rows) {
+      applied.add(row.filename.replace(/\.sql$/, ''));
     }
-
-    const files = fs.readdirSync(migrationsDir)
-      .filter(f => f.endsWith('.sql'))
-      .sort((a, b) => a.localeCompare(b));
+    const files = fs.existsSync(MIGRATIONS_DIR)
+      ? fs.readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.sql')).sort()
+      : [];
+    totalAvailable = files.length;
 
     for (const file of files) {
-      // Use the complete filename stem as the version. Prefix-only versions
-      // collide for files such as 0003_fleet_operations.sql and
-      // 0003_phase2_postgres.sql.
       const version = file.replace(/\.sql$/, '');
-      if (appliedSet.has(version)) {
+      if (applied.has(version)) {
+        await client.query(
+          'INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING',
+          [version, file]
+        );
+        await client.query(
+          'INSERT INTO core_schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING',
+          [file]
+        );
         skipped.push(file);
         continue;
       }
 
-      const filePath = path.join(migrationsDir, file);
-      const sql = fs.readFileSync(filePath, 'utf-8');
-
-      // Execute migration inside a single atomic transaction
+      const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await client.query('BEGIN');
       try {
         await client.query(sql);
         await client.query(
-          'INSERT INTO schema_migrations (version, name, executed_at) VALUES ($1, $2, NOW())',
+          'INSERT INTO schema_migrations (version, name) VALUES ($1, $2)',
           [version, file]
+        );
+        await client.query(
+          'INSERT INTO core_schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING',
+          [file]
         );
         await client.query('COMMIT');
         executed.push(file);
-        console.log(`[MigrationRunner] Successfully applied migration: ${file}`);
-      } catch (migErr: any) {
+      } catch (error) {
         await client.query('ROLLBACK');
-        console.error(`[MigrationRunner] Failed executing migration ${file}:`, migErr.message);
-        throw new Error(`Migration '${file}' failed: ${migErr.message}`);
+        throw error;
       }
     }
 
@@ -95,25 +92,37 @@ export async function runPendingMigrations(pool: pg.Pool): Promise<MigrationRepo
       success: true,
       executed,
       skipped,
-      totalAvailable: files.length,
+      totalAvailable,
       durationMs: Date.now() - start
     };
-  } catch (err: any) {
+  } catch (error) {
     return {
       success: false,
       executed,
       skipped,
-      totalAvailable: 0,
+      totalAvailable,
       durationMs: Date.now() - start,
-      error: err.message
+      error: error instanceof Error ? error.message : String(error)
     };
   } finally {
     try {
-      // Release distributed advisory lock
-      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_ID]);
-    } catch (unlockErr) {
-      console.warn('[MigrationRunner] Notice releasing migration advisory lock:', unlockErr);
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    } catch (error) {
+      console.warn('[MigrationRunner] Could not release advisory lock; closing connection will release it.', error);
     }
     client.release();
+  }
+}
+
+export async function runDatabaseMigrations(connectionUrl: string): Promise<string[]> {
+  const pool = new pg.Pool({ connectionString: connectionUrl });
+  try {
+    const report = await runPendingMigrations(pool);
+    if (!report.success) {
+      throw new Error(report.error || 'Migration runner failed.');
+    }
+    return report.executed;
+  } finally {
+    await pool.end();
   }
 }

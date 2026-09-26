@@ -160,3 +160,15 @@ export class PostgresConnectionManager {
 }
 
 export const postgresManager = new PostgresConnectionManager();
+
+export function isPostgresEnabled(): boolean {
+  return postgresManager.isConfigured();
+}
+
+export function getPostgresPool(): pg.Pool | null {
+  return postgresManager.getPool();
+}
+
+export async function closePostgresPool(): Promise<void> {
+  await postgresManager.close();
+}

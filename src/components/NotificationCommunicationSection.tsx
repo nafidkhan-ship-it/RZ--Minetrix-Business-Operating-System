@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { NotificationLiveFeedPanel } from './NotificationLiveFeedPanel';
 import { 
   Bell, Mail, MessageSquare, Smartphone, Clock, Zap, Inbox, FileCode,
   CheckCircle2, Code, Terminal, Copy, Check, Filter, Search, Plus,
@@ -20,7 +21,12 @@ import {
 } from '../data/notificationCommunicationData';
 
 export const NotificationCommunicationSection: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'modules' | 'simulator' | 'reminders' | 'automation' | 'templates' | 'messages' | 'schema' | 'tests'>('modules');
+  const [activeTab, setActiveTab] = useState<'live-feed' | 'modules' | 'simulator' | 'reminders' | 'automation' | 'templates' | 'messages' | 'schema' | 'tests'>('modules');
+  const [feedToast, setFeedToast] = useState<string | null>(null);
+  const showFeedToast = (msg: string) => {
+    setFeedToast(msg);
+    setTimeout(() => setFeedToast(null), 3000);
+  };
   const [selectedModuleId, setSelectedModuleId] = useState<string>('enterprise-notification-engine');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
 
@@ -154,6 +160,17 @@ export const NotificationCommunicationSection: React.FC = () => {
       {/* Main Navigation Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-2">
         <button
+          onClick={() => setActiveTab('live-feed')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
+            activeTab === 'live-feed'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-lg'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+        >
+          <Bell className="w-4 h-4" />
+          Live PostgreSQL Feed
+        </button>
+        <button
           onClick={() => setActiveTab('modules')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
             activeTab === 'modules'
@@ -249,6 +266,18 @@ export const NotificationCommunicationSection: React.FC = () => {
           Test Matrix (100% Pass)
         </button>
       </div>
+
+      {feedToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl shadow-2xl text-xs">
+          {feedToast}
+        </div>
+      )}
+
+      {activeTab === 'live-feed' && (
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
+          <NotificationLiveFeedPanel onToast={showFeedToast} />
+        </div>
+      )}
 
       {/* Tab 1: 8 Architecture Modules */}
       {activeTab === 'modules' && (
