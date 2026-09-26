@@ -37,7 +37,7 @@ export const RZLogo: React.FC<RZLogoProps> = ({
       {useImage && !imgError ? (
         <div className={`${logoDimensions[size]} shrink-0 relative rounded-xl overflow-hidden shadow-lg shadow-amber-500/25 border border-amber-400/50 transition-transform hover:scale-105 group`}>
           <img
-            src="/app-logo.jpg"
+            src="/icon.png"
             alt="RZ® Minetrix BOS Logo"
             className="w-full h-full object-cover object-center group-hover:brightness-110 transition duration-300"
             referrerPolicy="no-referrer"
@@ -67,4 +67,3 @@ export const RZLogo: React.FC<RZLogoProps> = ({
     </div>
   );
 };
-
