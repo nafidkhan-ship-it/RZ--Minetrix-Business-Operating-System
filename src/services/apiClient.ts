@@ -376,6 +376,15 @@ class SharedCoreApiClient {
     }
   }
 
+  public async listDispatches(): Promise<ApiResponse> {
+    try {
+      const res = await fetch('/api/v1/erp/dispatches', { headers: this.getHeaders() });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: 'NETWORK_ERROR', message: err.message };
+    }
+  }
+
   public async listGatePasses(): Promise<ApiResponse> {
     try {
       const res = await fetch('/api/v1/erp/gate-passes', { headers: this.getHeaders() });
@@ -513,7 +522,7 @@ class SharedCoreApiClient {
     }
   }
 
-  public async createOrderGatePass(orderId: string, payload: { gatePassNumber: string; vehicleNumber: string; driverName: string; destination?: string }): Promise<ApiResponse> {
+  public async createOrderGatePass(orderId: string, payload: { gatePassNumber: string; vehicleId: string; driverId: string; destination?: string }): Promise<ApiResponse> {
     try {
       const res = await fetch(`/api/v1/erp/orders/${orderId}/gate-pass`, {
         method: 'POST',

@@ -99,6 +99,9 @@ export const MiningOperationsPhase17Section: React.FC = () => {
   const [settlements, setSettlements] = useState<Array<{ id: string; settlementNumber: string; grossAmount: number; netAmount: number; quantity: number }>>([]);
   const [auditEntries, setAuditEntries] = useState<Array<{ action: string; module?: string; resource?: string; status?: string; createdAt: string }>>([]);
   const [crmOrders, setCrmOrders] = useState<Array<{ id: string; orderNumber: string; status: string; totalAmount: number }>>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<Array<{ id: string; registrationNumber: string; status: string }>>([]);
+  const [fleetDrivers, setFleetDrivers] = useState<Array<{ id: string; fullName: string; status: string }>>([]);
+  const [dispatches, setDispatches] = useState<Array<{ id: string; dispatchNumber: string }>>([]);
   const [crmForm, setCrmForm] = useState({
     companyName: '',
     contactName: '',
@@ -106,8 +109,8 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     productId: '',
     quantity: 4,
     unitPrice: 640,
-    vehicleNumber: '',
-    driverName: ''
+    vehicleId: '',
+    driverId: ''
   });
   const [productForm, setProductForm] = useState({ code: '', name: '20mm Aggregate', category: 'Crushed Aggregate' });
   const [productionForm, setProductionForm] = useState({
@@ -135,6 +138,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     quarryId: '',
     landParcelId: '',
     productionBatchId: '',
+    dispatchId: '',
     ratePerUom: 80,
     deductions: 25
   });
@@ -161,7 +165,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
 
   const loadErpOperations = useCallback(async () => {
     if (!apiClient.getAuthToken()) return;
-    const [products, batches, stock, parcels, passes, stmts, audit, orders] = await Promise.all([
+    const [products, batches, stock, parcels, passes, stmts, audit, orders, vehicles, drivers, dsp] = await Promise.all([
       apiClient.listProducts(),
       apiClient.listProductionBatches(),
       apiClient.listStockBalances(),
@@ -169,7 +173,10 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       apiClient.listGatePasses(),
       apiClient.listSettlements(),
       apiClient.getAuditLogs(),
-      apiClient.listOrders()
+      apiClient.listOrders(),
+      apiClient.listFleetVehicles({ status: 'ACTIVE' }),
+      apiClient.listFleetDrivers({ status: 'ACTIVE' }),
+      apiClient.listDispatches()
     ]);
     if (products.success && Array.isArray(products.data)) setErpProducts(products.data);
     if (batches.success && Array.isArray(batches.data)) setProductionBatches(batches.data);
@@ -179,6 +186,9 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     if (stmts.success && Array.isArray(stmts.data)) setSettlements(stmts.data);
     if (audit.success && Array.isArray(audit.data)) setAuditEntries(audit.data);
     if (orders.success && Array.isArray(orders.data)) setCrmOrders(orders.data);
+    if (vehicles.success && Array.isArray(vehicles.data)) setFleetVehicles(vehicles.data);
+    if (drivers.success && Array.isArray(drivers.data)) setFleetDrivers(drivers.data);
+    if (dsp.success && Array.isArray(dsp.data)) setDispatches(dsp.data);
   }, []);
 
   useEffect(() => {
@@ -356,8 +366,8 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       showToast('Login via Shared Core to create settlement');
       return;
     }
-    if (!settlementForm.quarryId || !settlementForm.landParcelId || !settlementForm.productionBatchId) {
-      showToast('Select quarry, land parcel, and posted production batch');
+    if (!settlementForm.quarryId || !settlementForm.landParcelId || (!settlementForm.productionBatchId && !settlementForm.dispatchId)) {
+      showToast('Select quarry, land parcel, and posted production or dispatch');
       return;
     }
     const rate = await apiClient.createSettlementRate({
@@ -375,8 +385,9 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       settlementNumber: `STL-${Date.now().toString().slice(-8)}`,
       landParcelId: settlementForm.landParcelId,
       quarryId: settlementForm.quarryId,
-      basis: 'PRODUCTION',
-      productionBatchId: settlementForm.productionBatchId,
+      basis: settlementForm.dispatchId ? 'DISPATCH' : 'PRODUCTION',
+      productionBatchId: settlementForm.dispatchId ? undefined : settlementForm.productionBatchId,
+      dispatchId: settlementForm.dispatchId || undefined,
       deductions: Number(settlementForm.deductions),
       statementRef: 'UAT-STMT'
     });
@@ -394,8 +405,8 @@ export const MiningOperationsPhase17Section: React.FC = () => {
       showToast('Login via Shared Core for CRM orders');
       return;
     }
-    if (!crmForm.companyName.trim() || !crmForm.quarryId || !crmForm.productId || !crmForm.vehicleNumber.trim() || !crmForm.driverName.trim()) {
-      showToast('Complete company, quarry, product, vehicle and driver');
+    if (!crmForm.companyName.trim() || !crmForm.quarryId || !crmForm.productId || !crmForm.vehicleId || !crmForm.driverId) {
+      showToast('Complete company, quarry, product, fleet vehicle and driver');
       return;
     }
     const lead = await apiClient.createLead({
@@ -435,8 +446,8 @@ export const MiningOperationsPhase17Section: React.FC = () => {
     }
     const gp = await apiClient.createOrderGatePass(order.data.id, {
       gatePassNumber: `GP-SO-${Date.now().toString().slice(-6)}`,
-      vehicleNumber: crmForm.vehicleNumber,
-      driverName: crmForm.driverName,
+      vehicleId: crmForm.vehicleId,
+      driverId: crmForm.driverId,
       destination: 'Order delivery'
     });
     if (gp.success) {
@@ -1023,7 +1034,7 @@ export const MiningOperationsPhase17Section: React.FC = () => {
                 ))}
               </div>
             </div>
-            <form onSubmit={handleCreateSettlement} className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs border-t border-slate-800 pt-4">
+            <form onSubmit={handleCreateSettlement} className="grid grid-cols-1 md:grid-cols-7 gap-3 text-xs border-t border-slate-800 pt-4">
               <select value={settlementForm.quarryId} onChange={(e) => setSettlementForm({ ...settlementForm, quarryId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
                 <option value="">Quarry</option>
                 {quarries.map((quarry) => <option key={quarry.id} value={quarry.id}>{quarry.code}</option>)}
@@ -1038,7 +1049,12 @@ export const MiningOperationsPhase17Section: React.FC = () => {
                   <option key={batch.id} value={batch.id}>{batch.batchNumber}</option>
                 ))}
               </select>
+              <select value={settlementForm.dispatchId} onChange={(e) => setSettlementForm({ ...settlementForm, dispatchId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Dispatch (optional)</option>
+                {dispatches.map((row) => <option key={row.id} value={row.id}>{row.dispatchNumber}</option>)}
+              </select>
               <input type="number" value={settlementForm.ratePerUom} onChange={(e) => setSettlementForm({ ...settlementForm, ratePerUom: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
+              <input type="number" min={0} step="0.01" value={settlementForm.deductions} onChange={(e) => setSettlementForm({ ...settlementForm, deductions: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
               <button type="submit" className="py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl">Create Settlement</button>
             </form>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
@@ -1077,8 +1093,14 @@ export const MiningOperationsPhase17Section: React.FC = () => {
               </select>
               <input type="number" min={0.001} step="0.001" value={crmForm.quantity} onChange={(e) => setCrmForm({ ...crmForm, quantity: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
               <input type="number" min={0} step="0.01" value={crmForm.unitPrice} onChange={(e) => setCrmForm({ ...crmForm, unitPrice: Number(e.target.value) })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono" />
-              <input placeholder="Vehicle" value={crmForm.vehicleNumber} onChange={(e) => setCrmForm({ ...crmForm, vehicleNumber: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
-              <input placeholder="Driver" value={crmForm.driverName} onChange={(e) => setCrmForm({ ...crmForm, driverName: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white" />
+              <select value={crmForm.vehicleId} onChange={(e) => setCrmForm({ ...crmForm, vehicleId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Fleet vehicle</option>
+                {fleetVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.registrationNumber}</option>)}
+              </select>
+              <select value={crmForm.driverId} onChange={(e) => setCrmForm({ ...crmForm, driverId: e.target.value })} className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white">
+                <option value="">Fleet driver</option>
+                {fleetDrivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.fullName}</option>)}
+              </select>
               <button type="submit" className="md:col-span-4 py-2 bg-blue-500 text-slate-950 font-bold rounded-xl">Create Lead, Order, Confirm, Gate Pass</button>
             </form>
             <div className="text-xs font-mono">

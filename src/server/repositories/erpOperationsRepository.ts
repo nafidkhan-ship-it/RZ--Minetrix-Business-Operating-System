@@ -239,6 +239,8 @@ export class ErpOperationsRepository {
       customerId: string;
       vehicleNumber: string;
       driverName: string;
+      vehicleId?: string;
+      driverId?: string;
       destination?: string;
       notes?: string;
       createdBy?: string;
@@ -253,8 +255,8 @@ export class ErpOperationsRepository {
       await client.query(
         `INSERT INTO erp_gate_passes (
           id, tenant_id, gate_pass_number, quarry_id, customer_id, vehicle_number,
-          driver_name, destination, status, notes, created_by, order_id
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10,$11)`,
+          driver_name, destination, status, notes, created_by, order_id, vehicle_id, driver_id
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10,$11,$12,$13)`,
         [
           id,
           tenantId,
@@ -266,7 +268,9 @@ export class ErpOperationsRepository {
           input.destination || null,
           input.notes || null,
           input.createdBy || null,
-          input.orderId || null
+          input.orderId || null,
+          input.vehicleId || null,
+          input.driverId || null
         ]
       );
 
@@ -394,11 +398,16 @@ export class ErpOperationsRepository {
         if (gatePass.status === 'CANCELLED') {
           throw new ErpServiceError('GATE_PASS_CANCELLED', 'Cannot dispatch a cancelled gate pass.');
         }
+        if (gatePass.status === 'DISPATCHED' || gatePass.dispatch_id) {
+          throw new ErpServiceError('DUPLICATE_DISPATCH', 'This gate pass already has a dispatch.', 409);
+        }
         if (gatePass.status !== 'ISSUED') {
           throw new ErpServiceError('INVALID_STATUS', 'Gate pass must be ISSUED before dispatch.');
         }
-        if (gatePass.dispatch_id) {
-          throw new ErpServiceError('DUPLICATE_DISPATCH', 'This gate pass already has a dispatch.', 409);
+
+        const requiresFleet = Boolean(gatePass.order_id || gatePass.vehicle_id || gatePass.driver_id);
+        if (requiresFleet) {
+          await this.assertFleetReadyForDispatch(client, tenantId, gatePass);
         }
 
         const lines = await client.query(
@@ -479,6 +488,15 @@ export class ErpOperationsRepository {
              SET status = 'DISPATCHED', updated_at = NOW()
              WHERE tenant_id = $1 AND id = $2 AND status IN ('CONFIRMED', 'ALLOCATED')`,
             [tenantId, gatePass.order_id]
+          );
+        }
+
+        if (requiresFleet) {
+          await client.query(
+            `UPDATE fleet_operations
+             SET dispatch_id = $3, status = 'IN_PROGRESS', actual_start_at = COALESCE(actual_start_at, NOW()), updated_at = NOW()
+             WHERE tenant_id = $1 AND gate_pass_id = $2 AND deleted_at IS NULL`,
+            [tenantId, input.gatePassId, dispatchId]
           );
         }
 
@@ -606,18 +624,36 @@ export class ErpOperationsRepository {
       const rate = Number(rateRes.rows[0].rate_per_uom);
       const uom = String(rateRes.rows[0].quantity_uom);
 
-      let quantity = input.quantity;
-      if (input.basis === 'PRODUCTION' && input.productionBatchId) {
+      let quantity = 0;
+      if (input.basis === 'PRODUCTION') {
+        if (!input.productionBatchId) {
+          throw new ErpServiceError('BAD_REQUEST', 'PRODUCTION settlement requires a production batch.');
+        }
         const batch = await client.query(
-          `SELECT total_quantity, status FROM erp_production_batches WHERE tenant_id = $1 AND id = $2`,
+          `SELECT total_quantity, status, quarry_id FROM erp_production_batches WHERE tenant_id = $1 AND id = $2`,
           [tenantId, input.productionBatchId]
         );
         if (!batch.rows[0] || batch.rows[0].status !== 'POSTED') {
           throw new ErpServiceError('BAD_REQUEST', 'Settlement requires a posted production batch.');
         }
+        if (String(batch.rows[0].quarry_id) !== input.quarryId) {
+          throw new ErpServiceError('BAD_REQUEST', 'Production batch does not belong to this quarry.');
+        }
         quantity = Number(batch.rows[0].total_quantity);
-      }
-      if (input.basis === 'DISPATCH' && input.dispatchId) {
+      } else if (input.basis === 'DISPATCH') {
+        if (!input.dispatchId) {
+          throw new ErpServiceError('BAD_REQUEST', 'DISPATCH settlement requires a dispatch reference.');
+        }
+        const dispatch = await client.query(
+          `SELECT id, quarry_id, status FROM erp_dispatches WHERE tenant_id = $1 AND id = $2`,
+          [tenantId, input.dispatchId]
+        );
+        if (!dispatch.rows[0] || dispatch.rows[0].status === 'CANCELLED') {
+          throw new ErpServiceError('NOT_FOUND', 'Dispatch not found.', 404);
+        }
+        if (String(dispatch.rows[0].quarry_id) !== input.quarryId) {
+          throw new ErpServiceError('BAD_REQUEST', 'Dispatch does not belong to this quarry.');
+        }
         const qty = await client.query(
           `SELECT COALESCE(SUM(quantity),0) AS qty FROM erp_dispatch_lines WHERE tenant_id = $1 AND dispatch_id = $2`,
           [tenantId, input.dispatchId]
@@ -780,9 +816,83 @@ export class ErpOperationsRepository {
         [tenantId, quarryId, line.productId, line.productSizeId || null, line.locationId || null]
       );
       const available = result.rows[0] ? Number(result.rows[0].quantity) : 0;
-      if (available < line.quantity) {
-        throw new ErpServiceError('INSUFFICIENT_STOCK', 'Insufficient stock to create this gate pass.', 409);
+      const openPasses = await client.query(
+        `SELECT COALESCE(SUM(gl.quantity), 0) AS qty
+         FROM erp_gate_pass_lines gl
+         JOIN erp_gate_passes gp ON gp.id = gl.gate_pass_id AND gp.tenant_id = gl.tenant_id
+         WHERE gl.tenant_id = $1
+           AND gp.quarry_id = $2
+           AND gp.status IN ('DRAFT', 'APPROVED', 'ISSUED')
+           AND gl.product_id = $3
+           AND COALESCE(gl.product_size_id, '') = COALESCE($4, '')
+           AND COALESCE(gl.location_id, '') = COALESCE($5, '')`,
+        [tenantId, quarryId, line.productId, line.productSizeId || null, line.locationId || null]
+      );
+      const remaining = available - Number(openPasses.rows[0].qty);
+      if (remaining < line.quantity) {
+        throw new ErpServiceError('INSUFFICIENT_STOCK', 'Insufficient available stock to create this gate pass.', 409);
       }
+    }
+  }
+
+  private async assertFleetReadyForDispatch(
+    client: pg.PoolClient,
+    tenantId: string,
+    gatePass: Record<string, unknown>
+  ): Promise<void> {
+    const operation = await client.query(
+      `SELECT * FROM fleet_operations
+       WHERE tenant_id = $1 AND gate_pass_id = $2 AND deleted_at IS NULL
+       LIMIT 1 FOR UPDATE`,
+      [tenantId, gatePass.id]
+    );
+    if (!operation.rows[0]) {
+      throw new ErpServiceError('FLEET_OPERATION_REQUIRED', 'Issued gate pass requires an active fleet operation before dispatch.', 409);
+    }
+    if (['CANCELLED', 'COMPLETED'].includes(String(operation.rows[0].status))) {
+      throw new ErpServiceError('INVALID_FLEET_OPERATION', 'Fleet operation is not valid for dispatch.', 409);
+    }
+    const vehicleId = String(operation.rows[0].vehicle_id);
+    const driverId = String(operation.rows[0].driver_id);
+    if (gatePass.vehicle_id && String(gatePass.vehicle_id) !== vehicleId) {
+      throw new ErpServiceError('INVALID_FLEET_OPERATION', 'Fleet operation vehicle does not match this gate pass.', 409);
+    }
+    if (gatePass.driver_id && String(gatePass.driver_id) !== driverId) {
+      throw new ErpServiceError('INVALID_FLEET_OPERATION', 'Fleet operation driver does not match this gate pass.', 409);
+    }
+    const vehicle = await client.query(
+      `SELECT status, deleted_at FROM fleet_vehicles WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [tenantId, vehicleId]
+    );
+    if (!vehicle.rows[0] || vehicle.rows[0].deleted_at || String(vehicle.rows[0].status) !== 'ACTIVE') {
+      throw new ErpServiceError('VEHICLE_UNAVAILABLE', 'Vehicle is not available for dispatch.', 409);
+    }
+    const driver = await client.query(
+      `SELECT status, deleted_at FROM fleet_drivers WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [tenantId, driverId]
+    );
+    if (!driver.rows[0] || driver.rows[0].deleted_at || String(driver.rows[0].status) !== 'ACTIVE') {
+      throw new ErpServiceError('DRIVER_UNAVAILABLE', 'Driver is not available for dispatch.', 409);
+    }
+    const expired = await client.query(
+      `SELECT 1 FROM fleet_vehicle_documents
+       WHERE tenant_id = $1 AND vehicle_id = $2 AND deleted_at IS NULL
+         AND document_type IN ('INSURANCE', 'FITNESS', 'PERMIT')
+         AND expiry_date IS NOT NULL AND expiry_date < CURRENT_DATE
+       LIMIT 1`,
+      [tenantId, vehicleId]
+    );
+    if (expired.rows[0]) {
+      throw new ErpServiceError('DOCUMENT_EXPIRED', 'Vehicle has expired mandatory compliance documents.', 409);
+    }
+    const maintenance = await client.query(
+      `SELECT 1 FROM fleet_vehicle_maintenance
+       WHERE tenant_id = $1 AND vehicle_id = $2 AND deleted_at IS NULL AND status IN ('OPEN', 'IN_PROGRESS')
+       LIMIT 1`,
+      [tenantId, vehicleId]
+    );
+    if (maintenance.rows[0]) {
+      throw new ErpServiceError('VEHICLE_IN_MAINTENANCE', 'Vehicle has open maintenance and cannot be dispatched.', 409);
     }
   }
 
@@ -841,6 +951,9 @@ export class ErpOperationsRepository {
       customerId: String(row.customer_id),
       vehicleNumber: String(row.vehicle_number),
       driverName: String(row.driver_name),
+      vehicleId: row.vehicle_id ? String(row.vehicle_id) : undefined,
+      driverId: row.driver_id ? String(row.driver_id) : undefined,
+      orderId: row.order_id ? String(row.order_id) : undefined,
       destination: row.destination ? String(row.destination) : undefined,
       status: String(row.status) as ErpGatePassRecord['status'],
       dispatchId: row.dispatch_id ? String(row.dispatch_id) : undefined,
