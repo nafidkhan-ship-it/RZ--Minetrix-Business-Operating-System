@@ -172,12 +172,8 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
     const client = await pool.connect();
     try {
       const fetchTableRows = async (tableName: string): Promise<any[]> => {
-        try {
-          const res = await client.query(`SELECT * FROM ${tableName}`);
-          return res.rows || [];
-        } catch {
-          return [];
-        }
+        const res = await client.query(`SELECT * FROM ${tableName}`);
+        return res.rows;
       };
 
       const [
@@ -277,4 +273,3 @@ export class PostgresPersistenceAdapter implements IPersistenceAdapter {
     };
   }
 }
-

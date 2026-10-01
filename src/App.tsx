@@ -331,7 +331,7 @@ export default function App() {
           <QuarryLandManagementPlatform onNavigateSection={handleNavigateSection} />
         )}
         
-        {/* 8. RZ® Chating */}
+        {/* 8. RZ® Chat */}
         {(activeSection === 'rz-chating' || activeSection === 'rz-chat-phase29') && (
           <RzChatingPlatform onNavigateSection={handleNavigateSection} />
         )}
@@ -517,4 +517,3 @@ export default function App() {
     </div>
   );
 }
-

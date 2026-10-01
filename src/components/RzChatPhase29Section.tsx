@@ -976,7 +976,7 @@ export const RzChatPhase29Section: React.FC = () => {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-mono mt-1">
-              8. RZ® Chating
+              8. RZ® Chat
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-3xl font-mono">
               Personal &amp; Business chat, Buyer &harr; Seller, Owner &harr; Contractor, Quarry &amp; Crusher groups, file sharing, voice messages, voice/video calls, and 1-click <strong>CREATE OTT TASK</strong> integration.

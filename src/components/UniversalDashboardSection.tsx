@@ -308,7 +308,7 @@ export const UniversalDashboardSection: React.FC<UniversalDashboardProps> = ({
                   <span>RZ® Connected Ecosystem</span>
                 </div>
                 <p className="text-slate-400 text-[11px]">
-                  BOS is connected to RZ® Chating and RZ® OTT. Any approval, contract milestone or weighbridge alert triggers instant OTT tasks and team chats.
+                  BOS is connected to RZ® Chat and RZ® OTT. Any approval, contract milestone or weighbridge alert triggers instant OTT tasks and team chats.
                 </p>
               </div>
             </div>
@@ -440,7 +440,7 @@ export const UniversalDashboardSection: React.FC<UniversalDashboardProps> = ({
               Welcome to RZ® Construction & Materials Network
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-              Enjoy 100% free access to building materials e-commerce, used machinery marketplace, quarry land discovery, heavy equipment job openings, RZ® Chating and RZ® OTT daily task planning!
+              Enjoy 100% free access to building materials e-commerce, used machinery marketplace, quarry land discovery, heavy equipment job openings, RZ® Chat and RZ® OTT daily task planning!
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
