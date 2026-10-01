@@ -1,351 +1,303 @@
-/**
- * RZ® Minetrix BOS - Enterprise Finance, Accounting & Financial Control Suite Router (Phase 21)
- */
-
-import { Router, Request, Response } from 'express';
-import { financeService } from '../services/financeServices.ts';
+import { Router, Response } from 'express';
+import {
+  authenticateJwt,
+  enforceTenantContext,
+  requirePermission,
+  CustomRequest
+} from '../middleware/authMiddleware.js';
+import { rejectClientTenantId, validateResourceIdParam } from '../middleware/inputValidation.js';
+import {
+  validateCreateAccountBody,
+  validateCreateExpenseBody,
+  validateCreateFinanceTransactionBody,
+  validateCreateInvoiceBody,
+  validateCreatePaymentBody
+} from '../middleware/financeValidation.js';
+import { FinanceService } from '../services/financeService.js';
+import { ErpServiceError } from '../services/erpErrors.js';
 
 export const financeRouter = Router();
+const finance = new FinanceService();
 
-function getTenantId(req: Request): string {
-  return (req as any).tenantContext?.tenantId || (req as any).user?.tenantId || 'tenant-rz-global-001';
+function handleFinanceError(error: unknown, res: Response) {
+  if (error instanceof ErpServiceError) {
+    return res.status(error.statusCode).json({ success: false, error: error.code, message: error.message });
+  }
+  console.error('[Finance API]', error instanceof Error ? error.message : 'Unknown error');
+  return res.status(500).json({ success: false, error: 'INTERNAL_SERVER_ERROR', message: 'An internal server error occurred.' });
 }
 
-function getUserId(req: Request): string {
-  return (req as any).user?.id || 'usr-admin-001';
+const viewFinance = [authenticateJwt, enforceTenantContext, requirePermission('finance:transaction:view')] as const;
+const writeFinance = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('finance:transaction:create')] as const;
+const viewInvoice = [authenticateJwt, enforceTenantContext, requirePermission('finance:invoice:view')] as const;
+const writeInvoice = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('finance:invoice:create')] as const;
+const writePayment = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('finance:payment:create')] as const;
+const viewExpense = [authenticateJwt, enforceTenantContext, requirePermission('finance:expense:view')] as const;
+const writeExpense = [authenticateJwt, rejectClientTenantId, enforceTenantContext, requirePermission('finance:expense:create')] as const;
+const approveExpense = [authenticateJwt, enforceTenantContext, requirePermission('finance:expense:approve')] as const;
+const viewReports = [authenticateJwt, enforceTenantContext, requirePermission('finance:report:view')] as const;
+
+function parseDateRangeQuery(req: CustomRequest) {
+  const fromDate = typeof req.query.fromDate === 'string' ? req.query.fromDate : undefined;
+  const toDate = typeof req.query.toDate === 'string' ? req.query.toDate : undefined;
+  return { fromDate, toDate };
 }
 
-// 1. Dashboard Metrics
-financeRouter.get('/dashboard', async (req: Request, res: Response) => {
+financeRouter.get('/accounts', ...viewFinance, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const metrics = await financeService.getDashboardMetrics(tenantId);
-    res.json({ success: true, data: metrics });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.listAccounts(req.user!.tenantId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 2. Chart of Accounts
-financeRouter.get('/accounts', async (req: Request, res: Response) => {
+financeRouter.post('/accounts', ...writeFinance, validateCreateAccountBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const accounts = await financeService.getChartOfAccounts(tenantId);
-    res.json({ success: true, data: accounts });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const account = await finance.createAccount(req.user!.tenantId, req.body);
+    return res.status(201).json({ success: true, data: account });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/accounts/:id', async (req: Request, res: Response) => {
+financeRouter.get('/transactions', ...viewFinance, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const account = await financeService.getAccountById(tenantId, req.params.id);
-    if (!account) return res.status(404).json({ success: false, error: 'Account not found' });
-    res.json({ success: true, data: account });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined;
+    const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : undefined;
+    const sourceModule = typeof req.query.sourceModule === 'string' ? req.query.sourceModule : undefined;
+    return res.json({
+      success: true,
+      data: await finance.listTransactions(req.user!.tenantId, { customerId, orderId, sourceModule })
+    });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/accounts', async (req: Request, res: Response) => {
+financeRouter.get('/transactions/:id', ...viewFinance, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const account = await financeService.createAccount(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: account });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.getTransaction(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.put('/accounts/:id', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/from-settlement/:settlementId', ...writeFinance, validateResourceIdParam('settlementId'), validateCreateFinanceTransactionBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const account = await financeService.updateAccount(tenantId, userId, req.params.id, req.body);
-    res.json({ success: true, data: account });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    const txn = await finance.createTransactionFromSettlement(req.user!.tenantId, {
+      settlementId: req.params.settlementId,
+      transactionNumber: req.body.transactionNumber,
+      createdBy: req.user!.userId
+    });
+    return res.status(201).json({ success: true, data: txn });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 3. Fiscal Years & Periods
-financeRouter.get('/fiscal-years', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/from-order/:orderId', ...writeFinance, validateResourceIdParam('orderId'), validateCreateFinanceTransactionBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const years = await financeService.getFiscalYears(tenantId);
-    res.json({ success: true, data: years });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const txn = await finance.createTransactionFromOrder(req.user!.tenantId, {
+      orderId: req.params.orderId,
+      transactionNumber: req.body.transactionNumber,
+      createdBy: req.user!.userId
+    });
+    return res.status(201).json({ success: true, data: txn });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/fiscal-periods', async (req: Request, res: Response) => {
+financeRouter.post('/transactions/from-dispatch/:dispatchId', ...writeFinance, validateResourceIdParam('dispatchId'), validateCreateFinanceTransactionBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const periods = await financeService.getFiscalPeriods(tenantId, req.query.fiscalYearId as string);
-    res.json({ success: true, data: periods });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const txn = await finance.createTransactionFromDispatch(req.user!.tenantId, {
+      dispatchId: req.params.dispatchId,
+      transactionNumber: req.body.transactionNumber,
+      createdBy: req.user!.userId
+    });
+    return res.status(201).json({ success: true, data: txn });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/fiscal-periods/:id/close', async (req: Request, res: Response) => {
+financeRouter.get('/journals/:id', ...viewFinance, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const period = await financeService.closeFiscalPeriod(tenantId, userId, req.params.id);
-    res.json({ success: true, data: period });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.getJournal(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/fiscal-periods/:id/reopen', async (req: Request, res: Response) => {
+financeRouter.get('/invoices', ...viewInvoice, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const period = await financeService.reopenFiscalPeriod(tenantId, userId, req.params.id);
-    res.json({ success: true, data: period });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined;
+    return res.json({ success: true, data: await finance.listInvoices(req.user!.tenantId, customerId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 4. Journals & Posting Engine
-financeRouter.get('/journals', async (req: Request, res: Response) => {
+financeRouter.post('/invoices', ...writeInvoice, validateCreateInvoiceBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const journals = await financeService.getJournals(tenantId);
-    res.json({ success: true, data: journals });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const invoice = await finance.createInvoice(req.user!.tenantId, { ...req.body, createdBy: req.user!.userId });
+    return res.status(201).json({ success: true, data: invoice });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/journals/:id', async (req: Request, res: Response) => {
+financeRouter.get('/invoices/:id', ...viewInvoice, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const details = await financeService.getJournalDetails(tenantId, req.params.id);
-    res.json({ success: true, data: details });
-  } catch (err: any) {
-    res.status(404).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.getInvoice(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/journals', async (req: Request, res: Response) => {
+financeRouter.post('/invoices/:id/issue', ...writeInvoice, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const journal = await financeService.createJournal(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: journal });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.issueInvoice(req.user!.tenantId, req.params.id) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/journals/:id/post', async (req: Request, res: Response) => {
+financeRouter.get('/payments', ...viewInvoice, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const journal = await financeService.postJournal(tenantId, userId, req.params.id);
-    res.json({ success: true, data: journal });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    const invoiceId = typeof req.query.invoiceId === 'string' ? req.query.invoiceId : undefined;
+    return res.json({ success: true, data: await finance.listPayments(req.user!.tenantId, invoiceId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/journals/:id/reverse', async (req: Request, res: Response) => {
+financeRouter.post('/payments', ...writePayment, validateCreatePaymentBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const { reason } = req.body || {};
-    const reversedJournal = await financeService.reverseJournal(tenantId, userId, req.params.id, reason || 'Requested reversal');
-    res.json({ success: true, data: reversedJournal });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    const payment = await finance.createPayment(req.user!.tenantId, { ...req.body, createdBy: req.user!.userId });
+    return res.status(201).json({ success: true, data: payment });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 5. Accounts Receivable (Invoices & Payments)
-financeRouter.get('/invoices', async (req: Request, res: Response) => {
+financeRouter.get('/expenses', ...viewExpense, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const invoices = await financeService.getInvoices(tenantId);
-    res.json({ success: true, data: invoices });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.listExpenses(req.user!.tenantId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/invoices', async (req: Request, res: Response) => {
+financeRouter.post('/expenses', ...writeExpense, validateCreateExpenseBody, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const invoice = await financeService.createCustomerInvoice(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: invoice });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    const expense = await finance.createExpense(req.user!.tenantId, { ...req.body, createdBy: req.user!.userId });
+    return res.status(201).json({ success: true, data: expense });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/payments', async (req: Request, res: Response) => {
+financeRouter.post('/expenses/:id/submit', ...writeExpense, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const payment = await financeService.recordCustomerPayment(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: payment });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.transitionExpense(req.user!.tenantId, req.params.id, 'SUBMITTED', req.user!.userId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/payments/:id/allocate', async (req: Request, res: Response) => {
+financeRouter.post('/expenses/:id/approve', ...approveExpense, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const { invoiceId, allocatedAmount } = req.body || {};
-    const alloc = await financeService.allocatePaymentToInvoice(tenantId, userId, req.params.id, invoiceId, Number(allocatedAmount));
-    res.json({ success: true, data: alloc });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.transitionExpense(req.user!.tenantId, req.params.id, 'APPROVED', req.user!.userId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 6. Accounts Payable (Bills)
-financeRouter.get('/bills', async (req: Request, res: Response) => {
+financeRouter.post('/expenses/:id/reject', ...approveExpense, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const bills = await financeService.getSupplierBills(tenantId);
-    res.json({ success: true, data: bills });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.transitionExpense(req.user!.tenantId, req.params.id, 'REJECTED', req.user!.userId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/bills', async (req: Request, res: Response) => {
+financeRouter.get('/reports/sales-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const bill = await financeService.createSupplierBill(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: bill });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.salesSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 7. Expenses
-financeRouter.get('/expenses', async (req: Request, res: Response) => {
+financeRouter.get('/reports/invoice-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const expenses = await financeService.getExpenses(tenantId);
-    res.json({ success: true, data: expenses });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.invoiceSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/expenses', async (req: Request, res: Response) => {
+financeRouter.get('/reports/receivables', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const expense = await financeService.recordExpense(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: expense });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.receivablesReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 8. Bank Management & Reconciliation
-financeRouter.get('/bank-accounts', async (req: Request, res: Response) => {
+financeRouter.get('/reports/payments-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const accounts = await financeService.getBankAccounts(tenantId);
-    res.json({ success: true, data: accounts });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.paymentsSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/bank-transactions', async (req: Request, res: Response) => {
+financeRouter.get('/reports/outstanding-balances', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const txs = await financeService.getBankTransactions(tenantId, req.query.bankAccountId as string);
-    res.json({ success: true, data: txs });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.outstandingBalancesReport(req.user!.tenantId) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.post('/bank-reconciliation', async (req: Request, res: Response) => {
+financeRouter.get('/reports/expenses-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const userId = getUserId(req);
-    const rec = await financeService.reconcileBankStatement(tenantId, userId, req.body);
-    res.status(201).json({ success: true, data: rec });
-  } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.expensesSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-// 9. Reports Engine
-financeRouter.get('/reports/general-ledger', async (req: Request, res: Response) => {
+financeRouter.get('/reports/income-expense-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const report = await financeService.getGeneralLedgerReport(
-      tenantId,
-      req.query.accountId as string,
-      req.query.startDate as string,
-      req.query.endDate as string
-    );
-    res.json({ success: true, data: report });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.incomeExpenseSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/reports/trial-balance', async (req: Request, res: Response) => {
+financeRouter.get('/reports/cash-flow', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const report = await financeService.getTrialBalanceReport(tenantId, req.query.asOfDate as string);
-    res.json({ success: true, data: report });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.cashFlowReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/reports/profit-loss', async (req: Request, res: Response) => {
+financeRouter.get('/reports/transaction-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const report = await financeService.getProfitAndLossReport(
-      tenantId,
-      req.query.startDate as string,
-      req.query.endDate as string
-    );
-    res.json({ success: true, data: report });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.transactionSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });
 
-financeRouter.get('/reports/balance-sheet', async (req: Request, res: Response) => {
+financeRouter.get('/reports/settlement-summary', ...viewReports, async (req: CustomRequest, res: Response) => {
   try {
-    const tenantId = getTenantId(req);
-    const report = await financeService.getBalanceSheetReport(tenantId, req.query.asOfDate as string);
-    res.json({ success: true, data: report });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-financeRouter.get('/reports/aging', async (req: Request, res: Response) => {
-  try {
-    const tenantId = getTenantId(req);
-    const type = (req.query.type as string)?.toUpperCase() === 'AP' ? 'AP' : 'AR';
-    const report = await financeService.getAgingReport(tenantId, type);
-    res.json({ success: true, data: report });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.json({ success: true, data: await finance.settlementFinancialSummaryReport(req.user!.tenantId, parseDateRangeQuery(req)) });
+  } catch (error) {
+    return handleFinanceError(error, res);
   }
 });

@@ -91,6 +91,12 @@ import { UniversalSearchModal } from './components/navigation/UniversalSearchMod
 import { resolveRoute, ALL_ROUTES_REGISTRY } from './components/navigation/routeRegistry';
 import { DemoRole, QuickActionItem } from './components/navigation/types';
 
+function sectionFromHash(): SectionId | null {
+  if (typeof window === 'undefined') return null;
+  const id = window.location.hash.replace(/^#/, '').trim();
+  return id ? (id as SectionId) : null;
+}
+
 export default function App() {
   const [activeSection, setActiveSection] = useState<SectionId>('universal-dashboard');
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -222,6 +228,22 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashed = sectionFromHash();
+      if (hashed) setActiveSection(hashed);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const selectSection = (section: SectionId) => {
+    setActiveSection(section);
+    if (window.location.hash !== `#${section}`) {
+      window.location.hash = section;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950 flex flex-col pt-safe pb-safe pl-safe pr-safe">
@@ -517,4 +539,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -57,6 +57,13 @@ export async function startServer() {
   app.use('/api/v1', apiRouter);
   app.use('/api', apiRouter);
 
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'API endpoint not found.' });
+  });
+  app.use('/health', (_req, res) => {
+    res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Health endpoint not found.' });
+  });
+
   // Check if compiled frontend exists in dist
   const distDir = path.join(process.cwd(), 'dist');
   const indexHtmlPath = path.join(distDir, 'index.html');

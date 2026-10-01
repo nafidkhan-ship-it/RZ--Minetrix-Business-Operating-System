@@ -1,30 +1,77 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import express from 'express';
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
+import { createCoreApp } from './src/server/app.js';
+import { errorHandler } from './src/server/middleware/errorHandler.js';
+import { initializeDatabase } from './src/server/db/database.js';
+import { isProduction, validateJwtSecurityConfig, validateSignedUrlSecurityConfig, validateDatabaseConfig } from './src/server/config/securityConfig.js';
+import { getCorsConfigSummary } from './src/server/middleware/corsMiddleware.js';
+import { jwtService } from './src/server/security/jwtService.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-async function bootstrap() {
-  const distServerCjs = path.join(__dirname, 'dist', 'server.cjs');
-  const rootServerJs = path.join(__dirname, 'server.js');
-
-  // In production (Cloud Run deployment), execute pre-bundled CommonJS server
-  if (fs.existsSync(distServerCjs)) {
-    await import(`file://${distServerCjs}`);
-  } else if (fs.existsSync(rootServerJs)) {
-    await import(`file://${rootServerJs}`);
-  } else {
-    // In development (via tsx server.ts)
-    try {
-      await import('./src/server/main.js');
-    } catch {
-      await import('./src/server/main.ts');
-    }
+async function startServer() {
+  const jwtCheck = validateJwtSecurityConfig();
+  const signedUrlCheck = validateSignedUrlSecurityConfig();
+  const databaseCheck = validateDatabaseConfig();
+  if (isProduction() && !jwtCheck.ok) {
+    console.error(`[Security] ${jwtCheck.message}`);
+    process.exit(1);
   }
+  if (isProduction() && !signedUrlCheck.ok) {
+    console.error(`[Security] ${signedUrlCheck.message}`);
+    process.exit(1);
+  }
+  if (isProduction() && !databaseCheck.ok) {
+    console.error(`[Security] ${databaseCheck.message}`);
+    process.exit(1);
+  }
+
+  await initializeDatabase();
+
+  const app = createCoreApp();
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const HOST = '0.0.0.0';
+
+  app.use('/health', (_req, res) => {
+    res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Health endpoint not found.' });
+  });
+
+  if (!isProduction()) {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
+    app.use(vite.middlewares);
+    console.log('[SERVER] Vite development middleware attached.');
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+    console.log('[SERVER] Static production assets attached from /dist.');
+  }
+
+  app.use(errorHandler);
+
+  app.listen(PORT, HOST, () => {
+    const cors = getCorsConfigSummary();
+    console.log('=======================================================');
+    console.log(' RZ® Minetrix BOS Shared Core Backend Running');
+    console.log(` Server URL: http://${HOST}:${PORT}`);
+    console.log(` Health Liveness: http://${HOST}:${PORT}/health/liveness`);
+    console.log(` Health Readiness: http://${HOST}:${PORT}/health/readiness`);
+    console.log(` API Base Route: http://${HOST}:${PORT}/api/v1`);
+    console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(` CORS origins: ${cors.allowedOrigins.join(', ') || '(none configured)'}`);
+    console.log(` JWT key source: ${jwtService.getKeySource()}`);
+    console.log('=======================================================');
+  });
 }
 
-bootstrap().catch((err) => {
-  console.error('[FATAL] Failed to start RZ Minetrix Server:', err);
+startServer().catch((err) => {
+  console.error('[FATAL] Failed to start RZ Minetrix Server:', err instanceof Error ? err.message : err);
   process.exit(1);
 });

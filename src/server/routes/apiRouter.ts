@@ -16,6 +16,7 @@ import {
 } from '../services/sharedCoreServices.js';
 import { OrganizationRepository, RolePermissionRepository, DocumentRepository } from '../repositories/sharedCoreRepositories.js';
 import { runSharedCoreTestSuite } from '../tests/sharedCoreTests.js';
+import { getReadinessPayload } from '../health/readiness.js';
 import { db } from '../db/database.js';
 import { jwtService } from '../security/jwtService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
@@ -28,6 +29,16 @@ import { financeRouter } from './financeRouter.js';
 import { hrRouter } from './hrRouter.js';
 import { quarryRouter } from './quarryRouter.js';
 import { ottRouter } from './ottRouter.js';
+import { isTestSuiteAuthorized, isTestSuiteEnabled } from '../config/securityConfig.js';
+import {
+  rejectClientTenantId,
+  validateLoginBody,
+  validateOptionalQueryId,
+  validateResourceIdParam
+} from '../middleware/inputValidation.js';
+import { erpQuarryRouter } from './erpQuarryRouter.js';
+import { erpOperationsRouter } from './erpOperationsRouter.js';
+import { hrmsRouter } from './hrmsRouter.js';
 
 export const apiRouter = Router();
 
@@ -44,6 +55,13 @@ const storageProvider = new LocalStorageProvider();
 
 // Global Audit Middleware on Router
 apiRouter.use(auditLogger);
+
+// ERP Quarry + operations APIs (PostgreSQL + RLS)
+apiRouter.use('/erp', erpQuarryRouter);
+apiRouter.use('/erp', erpOperationsRouter);
+apiRouter.use('/hrms', hrmsRouter);
+apiRouter.use('/fleet', fleetRouter);
+apiRouter.use('/finance', financeRouter);
 
 // Rate Limiters
 const authRateLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 15, keyPrefix: 'auth_login' });
@@ -62,41 +80,15 @@ apiRouter.get('/health/liveness', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/health/readiness', async (req: Request, res: Response) => {
-  const isDbReady = db.tenants.size > 0;
-  const adapterStatus = await db.persistenceAdapter.executeHealthCheck();
-  const jwtMeta = jwtService.getKeyMetadata();
-
-  res.json({
-    status: isDbReady ? 'READY' : 'NOT_READY',
-    checks: {
-      databaseStore: isDbReady ? 'HEALTHY' : 'UNHEALTHY',
-      persistenceAdapter: adapterStatus.status,
-      persistenceEngine: adapterStatus.engine,
-      jwtSignerAlgorithm: jwtMeta.algorithm,
-      jwtKeyStatus: jwtMeta.status,
-      storageProvider: storageProvider.providerName,
-      notificationCore: 'ACTIVE_IN_APP'
-    },
-    counts: {
-      tenants: db.tenants.size,
-      users: db.users.size,
-      companies: db.companies.size,
-      branches: db.branches.size,
-      auditLogs: db.auditLogs.size
-    },
-    timestamp: new Date().toISOString()
-  });
+  const payload = await getReadinessPayload();
+  res.status(payload.status === 'READY' ? 200 : 503).json(payload);
 });
 
 // ==========================================
 // 2. AUTHENTICATION ENDPOINTS
 // ==========================================
-apiRouter.post('/auth/login', authRateLimiter, async (req: Request, res: Response) => {
+apiRouter.post('/auth/login', authRateLimiter, validateLoginBody, async (req: Request, res: Response) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'Email and password are required.' });
-  }
-
   const result = await authService.login(email, password, req.ip || '127.0.0.1');
   if (!result.success) {
     return res.status(401).json(result);
@@ -135,11 +127,17 @@ apiRouter.get('/organizations/companies', authenticateJwt, enforceTenantContext,
   return res.json({ success: true, data: companies });
 });
 
-apiRouter.get('/organizations/branches', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
-  const { companyId } = req.query;
-  const branches = await orgRepo.findBranchesByCompany(String(companyId || req.user!.companyId), req.user!.tenantId);
-  return res.json({ success: true, data: branches });
-});
+apiRouter.get(
+  '/organizations/branches',
+  authenticateJwt,
+  enforceTenantContext,
+  validateOptionalQueryId('companyId'),
+  async (req: CustomRequest, res: Response) => {
+    const { companyId } = req.query;
+    const branches = await orgRepo.findBranchesByCompany(String(companyId || req.user!.companyId), req.user!.tenantId);
+    return res.json({ success: true, data: branches });
+  }
+);
 
 // ==========================================
 // 4. USER MANAGEMENT ENDPOINTS
@@ -149,12 +147,20 @@ apiRouter.get('/users', authenticateJwt, enforceTenantContext, async (req: Custo
   return res.json(result);
 });
 
-apiRouter.post('/users/:id/link-operational', authenticateJwt, enforceTenantContext, requirePermission('shared:admin:access'), async (req: CustomRequest, res: Response) => {
-  const { id } = req.params;
-  const { employeeId, driverId, operatorId } = req.body || {};
-  const result = await userService.linkOperationalAccount(id, req.user!.tenantId, { employeeId, driverId, operatorId });
-  return res.json(result);
-});
+apiRouter.post(
+  '/users/:id/link-operational',
+  authenticateJwt,
+  enforceTenantContext,
+  requirePermission('shared:admin:access'),
+  validateResourceIdParam('id'),
+  rejectClientTenantId,
+  async (req: CustomRequest, res: Response) => {
+    const { id } = req.params;
+    const { employeeId, driverId, operatorId } = req.body || {};
+    const result = await userService.linkOperationalAccount(id, req.user!.tenantId, { employeeId, driverId, operatorId });
+    return res.json(result);
+  }
+);
 
 // ==========================================
 // 5. ROLES & PERMISSIONS (RBAC)
@@ -177,8 +183,35 @@ apiRouter.get('/notifications', authenticateJwt, enforceTenantContext, async (re
   return res.json(result);
 });
 
-apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
-  const { recipientUserId, recipientEmail, title, body, channel, type } = req.body || {};
+apiRouter.post('/notifications/:id/read', authenticateJwt, enforceTenantContext, validateResourceIdParam('id'), async (req: CustomRequest, res: Response) => {
+  const result = await notifService.markNotificationRead(req.user!.tenantId, req.user!.userId, req.params.id);
+  if (!result.success) return res.status(404).json(result);
+  return res.json(result);
+});
+
+apiRouter.post('/notifications/read-all', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+  const result = await notifService.markAllNotificationsRead(req.user!.tenantId, req.user!.userId);
+  return res.json(result);
+});
+
+apiRouter.post('/notifications', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
+  const { title, body, type, relatedModule, relatedRecordType, relatedRecordId, linkUrl } = req.body || {};
+  if (!title || typeof title !== 'string') {
+    return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'title is required.' });
+  }
+  const result = await notifService.createNotification(
+    req.user!.tenantId,
+    req.user!.userId,
+    title,
+    typeof body === 'string' ? body : '',
+    (type as 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS') || 'INFO',
+    { relatedModule, relatedRecordType, relatedRecordId, linkUrl }
+  );
+  return res.status(201).json(result);
+});
+
+apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
+  const { recipientUserId, recipientEmail, title, body, channel, type, relatedModule, relatedRecordType, relatedRecordId, linkUrl } = req.body || {};
   const result = await notificationDispatcher.dispatch({
     tenantId: req.user!.tenantId,
     recipientUserId: recipientUserId || req.user!.userId,
@@ -186,16 +219,17 @@ apiRouter.post('/notifications/dispatch', authenticateJwt, enforceTenantContext,
     title: title || 'System Notification',
     body: body || '',
     channel: channel || 'IN_APP',
-    type: type || 'INFO'
+    type: type || 'INFO',
+    linkUrl
   });
 
-  // Also persist in notification feed
   await notifService.createNotification(
     req.user!.tenantId,
     recipientUserId || req.user!.userId,
     title || 'Notification',
     body || '',
-    type || 'INFO'
+    type || 'INFO',
+    { relatedModule, relatedRecordType, relatedRecordId, linkUrl, channel: channel || 'IN_APP' }
   );
 
   return res.json({ success: true, deliveryResult: result });
@@ -215,7 +249,7 @@ apiRouter.get('/documents', authenticateJwt, enforceTenantContext, async (req: C
   return res.json({ success: true, data: docs });
 });
 
-apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
   const { fileName, fileSize, mimeType, module, entityType, entityId, accessLevel } = req.body || {};
   const doc = await docRepo.registerMetadata({
     tenantId: req.user!.tenantId,
@@ -239,14 +273,16 @@ apiRouter.post('/documents/metadata', authenticateJwt, enforceTenantContext, asy
 // 8. AUDIT LOG ENDPOINTS
 // ==========================================
 apiRouter.get('/audit/search', authenticateJwt, enforceTenantContext, requirePermission('shared:admin:access'), async (req: CustomRequest, res: Response) => {
-  const result = await auditService.getAuditLogs(req.user!.tenantId, 50);
+  const requested = Number(req.query.limit);
+  const limit = Number.isFinite(requested) ? Math.min(200, Math.max(1, requested)) : 50;
+  const result = await auditService.getAuditLogs(req.user!.tenantId, limit);
   return res.json(result);
 });
 
 // ==========================================
 // 9. WORKFLOW ENGINE ENDPOINTS
 // ==========================================
-apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, async (req: CustomRequest, res: Response) => {
+apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, rejectClientTenantId, async (req: CustomRequest, res: Response) => {
   const { workflowCode, entityType, entityId } = req.body || {};
   const result = await wfService.initiateWorkflow(
     req.user!.tenantId,
@@ -258,9 +294,6 @@ apiRouter.post('/workflows/initiate', authenticateJwt, enforceTenantContext, asy
   return res.json(result);
 });
 
-// Mount Fleet Operations Router
-apiRouter.use('/fleet', fleetRouter);
-
 // Mount AI Load Exchange & Transport Marketplace Router (Phase 19)
 apiRouter.use('/marketplace', marketplaceRouter);
 apiRouter.use('/v1/marketplace', marketplaceRouter);
@@ -268,10 +301,6 @@ apiRouter.use('/v1/marketplace', marketplaceRouter);
 // Mount Enterprise CRM & Customer 360 Router (Phase 20)
 apiRouter.use('/crm', crmRouter);
 apiRouter.use('/v1/crm', crmRouter);
-
-// Mount Enterprise Finance, Accounting & Financial Control Router (Phase 21)
-apiRouter.use('/finance', financeRouter);
-apiRouter.use('/v1/finance', financeRouter);
 
 // Mount Enterprise HRMS, Workforce & Payroll Management Router (Phase 22)
 apiRouter.use('/hr', hrRouter);
@@ -289,15 +318,20 @@ apiRouter.use('/v1/ott', ottRouter);
 // 10. PROTECTED SHARED CORE TEST SUITE ENDPOINT
 // ==========================================
 apiRouter.get('/test/run-suite', testRateLimiter, async (req: Request, res: Response) => {
-  const isDev = process.env.NODE_ENV !== 'production';
-  const secretKey = req.query.key || req.headers['x-test-key'];
-  const isValidKey = secretKey === 'rz_test_suite_secret_2026';
+  if (!isTestSuiteEnabled()) {
+    return res.status(404).json({
+      success: false,
+      error: 'NOT_FOUND',
+      message: 'Test suite endpoint is not enabled.'
+    });
+  }
 
-  if (!isDev && !isValidKey) {
+  const secretKey = req.query.key || req.headers['x-test-key'];
+  if (!isTestSuiteAuthorized(secretKey)) {
     return res.status(403).json({
       success: false,
       error: 'FORBIDDEN_TEST_SUITE_ACCESS',
-      message: 'Test suite execution is disabled in production environments without administrative security key.'
+      message: 'Test suite execution requires a valid authorization key.'
     });
   }
 

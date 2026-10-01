@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { signSignedUrlPayload } from '../config/securityConfig.js';
 
 export interface StorageObjectMetadata {
   key: string;
@@ -88,7 +89,7 @@ export class LocalStorageProvider implements IStorageProvider {
       throw new Error(`Tenant Security Access Denied: Storage key [${params.storageKey}] does not belong to tenant [${params.tenantId}]`);
     }
     const expiresAt = Math.floor(Date.now() / 1000) + (params.expiresInSeconds || 3600);
-    const signature = crypto.createHmac('sha256', 'signed_url_secret_2026').update(`${params.storageKey}:${expiresAt}`).digest('hex');
+    const signature = signSignedUrlPayload(params.storageKey, expiresAt);
     return `/api/v1/documents/download?key=${encodeURIComponent(params.storageKey)}&exp=${expiresAt}&sig=${signature}`;
   }
 
