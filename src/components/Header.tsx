@@ -205,7 +205,7 @@ export const MASTER_ECOSYSTEM_STRUCTURE: MasterCategory[] = [
   }
 ];
 
-// The ONLY 9 Primary User-Facing Pillars
+// The ONLY 10 Primary User-Facing Pillars
 export interface EcosystemPillar {
   id: SectionId;
   pillarNumber: number;

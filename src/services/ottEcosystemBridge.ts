@@ -1,6 +1,6 @@
 /**
  * RZ® MINETRIX BOS - Cross-Platform OTT Connection Engine
- * Universal Bridge connecting all 9 platforms to RZ® OTT & Notification Center
+ * Universal Bridge connecting all 10 primary platforms to RZ® OTT & Notification Center
  * Implements Event Model: source_system, source_module, source_record_id, source_event, idempotency_key
  */
 
@@ -60,7 +60,7 @@ export interface OTTNotification {
 const STORAGE_KEY_OTT = 'rz_minetrix_connected_ott_items';
 const STORAGE_KEY_NOTIFS = 'rz_minetrix_notifications';
 
-// Initial pre-seeded connected ecosystem tasks across the 9 platforms
+// Initial pre-seeded connected ecosystem tasks across the 10 primary platforms
 const INITIAL_CONNECTED_ITEMS: OTTConnectedItem[] = [
   {
     id: 'OTT-001',

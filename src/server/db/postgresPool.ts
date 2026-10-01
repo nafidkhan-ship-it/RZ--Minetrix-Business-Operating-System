@@ -90,9 +90,10 @@ export class PostgresConnectionManager {
   public async checkHealth(): Promise<DatabaseHealthStatus> {
     if (!this.isConfigured()) {
       return {
-        status: 'LOCAL_JSON',
-        engine: 'PostgreSQL Engine (Unconfigured - Local JSON Fallback /data/shared_core_db.json)',
-        tablesCount: 23
+        status: 'POSTGRESQL_UNAVAILABLE',
+        engine: 'PostgreSQL Engine (Unconfigured - DATABASE_URL or POSTGRES_URL is required)',
+        tablesCount: 0,
+        error: 'Local JSON fallback is disabled. Configure DATABASE_URL or POSTGRES_URL before startup.'
       };
     }
 

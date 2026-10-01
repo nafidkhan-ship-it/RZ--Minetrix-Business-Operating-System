@@ -73,7 +73,7 @@ export const ALL_DEMO_ROLES: RoleDefinition[] = [
     role: 'SUPER_ADMIN',
     title: 'Super Admin',
     category: 'EXECUTIVE',
-    description: 'Full platform access, organizations, users, system settings, API, automation, audit, and all 9 platforms.',
+    description: 'Full platform access, organizations, users, system settings, API, automation, audit, and all 10 primary platforms.',
     welcomeGreeting: 'Welcome, Super Admin',
     defaultSection: 'overview',
     allowedNav: ['*'],
