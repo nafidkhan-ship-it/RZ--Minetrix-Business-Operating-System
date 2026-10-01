@@ -28,11 +28,21 @@ export class JwtService {
   private audience: string = 'rz-minetrix-clients';
 
   constructor() {
-    if (process.env.RSA_PRIVATE_KEY && process.env.RSA_PUBLIC_KEY) {
-      this.privateKeyPem = process.env.RSA_PRIVATE_KEY;
-      this.publicKeyPem = process.env.RSA_PUBLIC_KEY;
+    const privateKey = process.env.RSA_PRIVATE_KEY?.trim();
+    const publicKey = process.env.RSA_PUBLIC_KEY?.trim();
+
+    if (Boolean(privateKey) !== Boolean(publicKey)) {
+      throw new Error('RSA_PRIVATE_KEY and RSA_PUBLIC_KEY must be configured together.');
+    }
+
+    if (privateKey && publicKey) {
+      this.privateKeyPem = privateKey;
+      this.publicKeyPem = publicKey;
     } else {
-      // Auto-generate 2048-bit RSA Keypair for development/testing
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('RSA_PRIVATE_KEY and RSA_PUBLIC_KEY must be configured in production; refusing to generate an ephemeral JWT keypair.');
+      }
+
       const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: 2048,
         publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -54,7 +64,9 @@ export class JwtService {
       issuer: this.issuer,
       audience: this.audience,
       keyType: 'RSA 2048-bit',
-      status: process.env.RSA_PRIVATE_KEY ? 'PRODUCTION_KEY_LOADED' : 'DEVELOPMENT_DYNAMIC_RSA_KEYPAIR'
+      status: process.env.RSA_PRIVATE_KEY?.trim() && process.env.RSA_PUBLIC_KEY?.trim()
+        ? 'PRODUCTION_KEY_LOADED'
+        : 'DEVELOPMENT_DYNAMIC_RSA_KEYPAIR'
     };
   }
 

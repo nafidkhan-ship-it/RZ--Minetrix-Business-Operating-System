@@ -28,6 +28,7 @@ export interface IStorageProvider {
 export class LocalStorageProvider implements IStorageProvider {
   public providerName: 'LOCAL_DISK' = 'LOCAL_DISK';
   private baseDir: string;
+  private signingSecret: string;
   private allowedMimeTypes = [
     'application/pdf',
     'image/png',
@@ -41,6 +42,11 @@ export class LocalStorageProvider implements IStorageProvider {
 
   constructor(customDir?: string) {
     this.baseDir = customDir || path.join(process.cwd(), 'uploads');
+    const signingSecret = process.env.STORAGE_SIGNING_SECRET?.trim();
+    if (!signingSecret && process.env.NODE_ENV === 'production') {
+      throw new Error('STORAGE_SIGNING_SECRET must be configured in production.');
+    }
+    this.signingSecret = signingSecret || crypto.randomBytes(32).toString('hex');
   }
 
   public validateFile(params: { mimeType: string; sizeBytes: number }): { valid: boolean; error?: string } {
@@ -84,19 +90,23 @@ export class LocalStorageProvider implements IStorageProvider {
   }
 
   public async getSignedUrl(params: { storageKey: string; tenantId: string; expiresInSeconds?: number }): Promise<string> {
-    if (!params.storageKey.startsWith(params.tenantId)) {
+    if (!params.storageKey.startsWith(`${params.tenantId}/`)) {
       throw new Error(`Tenant Security Access Denied: Storage key [${params.storageKey}] does not belong to tenant [${params.tenantId}]`);
     }
     const expiresAt = Math.floor(Date.now() / 1000) + (params.expiresInSeconds || 3600);
-    const signature = crypto.createHmac('sha256', 'signed_url_secret_2026').update(`${params.storageKey}:${expiresAt}`).digest('hex');
+    const signature = crypto.createHmac('sha256', this.signingSecret).update(`${params.storageKey}:${expiresAt}`).digest('hex');
     return `/api/v1/documents/download?key=${encodeURIComponent(params.storageKey)}&exp=${expiresAt}&sig=${signature}`;
   }
 
   public async delete(storageKey: string, tenantId: string): Promise<boolean> {
-    if (!storageKey.startsWith(tenantId)) {
+    if (!storageKey.startsWith(`${tenantId}/`)) {
       throw new Error('Tenant Security Access Denied');
     }
-    const fullPath = path.join(this.baseDir, storageKey);
+    const tenantDir = path.resolve(this.baseDir, tenantId);
+    const fullPath = path.resolve(this.baseDir, storageKey);
+    if (!fullPath.startsWith(`${tenantDir}${path.sep}`)) {
+      throw new Error('Tenant Security Access Denied');
+    }
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
       return true;
@@ -128,13 +138,13 @@ export class S3GcsStorageProviderAdapter implements IStorageProvider {
   }
 
   public async getSignedUrl(params: { storageKey: string; tenantId: string; expiresInSeconds?: number }): Promise<string> {
-    if (!params.storageKey.startsWith(params.tenantId)) {
+    if (!params.storageKey.startsWith(`${params.tenantId}/`)) {
       throw new Error('Tenant Security Access Denied');
     }
-    return `https://${this.bucketName || 'storage'}.s3.amazonaws.com/${params.storageKey}?X-Amz-Signature=signed_placeholder`;
+    throw new Error('Cloud storage signed URL generation is not implemented.');
   }
 
   public async delete(_storageKey: string, _tenantId: string): Promise<boolean> {
-    return true;
+    throw new Error('Cloud storage deletion is not implemented.');
   }
 }

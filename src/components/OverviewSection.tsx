@@ -155,7 +155,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
     {
       number: '08',
       id: 'rz-chating' as SectionId,
-      name: 'RZ® Chating',
+      name: 'RZ® Chat',
       icon: MessageSquare,
       theme: 'violet',
       accentColor: 'text-violet-400',
@@ -199,7 +199,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
     }
   ];
 
-  // 15 Shared Backbone Services (NOT numbered as Platform 10)
+  // Shared backbone services are integrated capabilities, not primary platforms.
   const backboneServices = [
     { name: 'RZ® Identity', desc: 'SSO, RBAC, Passkeys & Multi-tenant isolation', icon: KeyRound, target: 'auth-multi-tenant' as SectionId },
     { name: 'RZ® Grid', desc: 'High-speed spreadsheet bulk entry & sync studio', icon: LayoutGrid, target: 'rz-grid-studio' as SectionId },
@@ -463,7 +463,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
       </section>
 
       {/* ================================================== */}
-      {/* SHARED BACKBONE (NOT A 10th PLATFORM)              */}
+      {/* SHARED BACKBONE (NOT AN ADDITIONAL PRIMARY PLATFORM) */}
       {/* ================================================== */}
       <section className="space-y-6" id="shared-backbone-section">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-2 border-b border-slate-800">

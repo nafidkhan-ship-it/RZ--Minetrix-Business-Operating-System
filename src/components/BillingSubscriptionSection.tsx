@@ -47,7 +47,7 @@ const TIERS: PlanTier[] = [
       'Free Used Machinery & Heavy Vehicle marketplace listings & inquiries',
       'Free Quarry Land discovery & buyer/tenant lead submission',
       'Free Job Seeker profile & unlimited candidate job applications',
-      'RZ® Chating: 1-on-1 team messaging & customer inquiries',
+      'RZ® Chat: 1-on-1 team messaging & customer inquiries',
       'RZ® OTT: Personal daily task planner & reminders',
       'Standard SSL encryption & mobile web app'
     ],

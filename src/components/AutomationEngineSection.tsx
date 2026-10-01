@@ -97,7 +97,7 @@ export const AutomationEngineSection: React.FC = () => {
                 Centralized Automation & Reminder Engine
               </h1>
               <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                Event-driven choreography connecting Quarry, Crusher, Vehicle Fleet, Contracts, Marketplace Orders, RZ® Chating and RZ® OTT with low-latency event processing, multi-channel reminders, quiet-hours and rate limiting.
+                Event-driven choreography connecting Quarry, Crusher, Vehicle Fleet, Contracts, Marketplace Orders, RZ® Chat and RZ® OTT with low-latency event processing, multi-channel reminders, quiet-hours and rate limiting.
               </p>
             </div>
           </div>

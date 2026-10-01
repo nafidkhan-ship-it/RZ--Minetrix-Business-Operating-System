@@ -285,25 +285,13 @@ apiRouter.use('/v1/quarries', quarryRouter);
 apiRouter.use('/ott', ottRouter);
 apiRouter.use('/v1/ott', ottRouter);
 
-// ==========================================
-// 10. PROTECTED SHARED CORE TEST SUITE ENDPOINT
-// ==========================================
-apiRouter.get('/test/run-suite', testRateLimiter, async (req: Request, res: Response) => {
-  const isDev = process.env.NODE_ENV !== 'production';
-  const secretKey = req.query.key || req.headers['x-test-key'];
-  const isValidKey = secretKey === 'rz_test_suite_secret_2026';
-
-  if (!isDev && !isValidKey) {
-    return res.status(403).json({
-      success: false,
-      error: 'FORBIDDEN_TEST_SUITE_ACCESS',
-      message: 'Test suite execution is disabled in production environments without administrative security key.'
+// Keep the in-process test endpoint opt-in and unavailable in production.
+if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_ENDPOINTS === 'true') {
+  apiRouter.get('/test/run-suite', testRateLimiter, async (_req: Request, res: Response) => {
+    const report = await runSharedCoreTestSuite();
+    return res.json({
+      success: true,
+      report
     });
-  }
-
-  const report = await runSharedCoreTestSuite();
-  return res.json({
-    success: true,
-    report
   });
-});
+}

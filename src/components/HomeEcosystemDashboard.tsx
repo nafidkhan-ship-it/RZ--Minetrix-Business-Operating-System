@@ -503,7 +503,7 @@ export const HomeEcosystemDashboard: React.FC<HomeEcosystemDashboardProps> = ({
                 { label: 'My Orders', section: 'building-materials-ecommerce', icon: ShoppingBag, color: 'text-cyan-400' },
                 { label: 'Delivery Tracking', section: 'building-materials-ecommerce', icon: Truck, color: 'text-blue-400' },
                 { label: 'Invoices & GST', section: 'finance-suite', icon: DollarSign, color: 'text-emerald-400' },
-                { label: 'RZ® Chating', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
+                { label: 'RZ® Chat', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
                 { label: 'RZ® OTT Tasks', section: 'rz-ott', icon: Clock, color: 'text-amber-400' }
               ].map((m, idx) => {
                 const Icon = m.icon;
@@ -531,7 +531,7 @@ export const HomeEcosystemDashboard: React.FC<HomeEcosystemDashboardProps> = ({
                 { label: 'Laterite Stone Order', section: 'building-materials-ecommerce', icon: Layers, color: 'text-amber-300 font-bold' },
                 { label: 'Equipment Orders', section: 'used-machinery-marketplace', icon: ShoppingBag, color: 'text-blue-400' },
                 { label: 'Enquiries & RFQs', section: 'used-machinery-marketplace', icon: Activity, color: 'text-purple-400' },
-                { label: 'RZ® Chating', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
+                { label: 'RZ® Chat', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
                 { label: 'RZ® OTT Tasks', section: 'rz-ott', icon: Clock, color: 'text-amber-400' }
               ].map((m, idx) => {
                 const Icon = m.icon;
@@ -592,7 +592,7 @@ export const HomeEcosystemDashboard: React.FC<HomeEcosystemDashboardProps> = ({
                 { label: 'Leave', section: 'shared-hr-payroll', icon: Calendar, color: 'text-yellow-400' },
                 { label: 'Payroll', section: 'shared-hr-payroll', icon: DollarSign, color: 'text-amber-400' },
                 { label: 'Documents', section: 'shared-masters-dms', icon: FileText, color: 'text-indigo-400' },
-                { label: 'RZ® Chating', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
+                { label: 'RZ® Chat', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
                 { label: 'Compliance', section: 'shared-erp-compliance', icon: ShieldCheck, color: 'text-emerald-400' },
                 { label: 'RZ® OTT Tasks', section: 'rz-ott', icon: Clock, color: 'text-amber-400' }
               ].map((m, idx) => {
@@ -621,7 +621,7 @@ export const HomeEcosystemDashboard: React.FC<HomeEcosystemDashboardProps> = ({
                 { label: 'Fuel Logs', section: 'vehicle-management', icon: Activity, color: 'text-amber-400' },
                 { label: 'Documents', section: 'shared-masters-dms', icon: FileText, color: 'text-indigo-400' },
                 { label: 'Delivery Tasks', section: 'rz-ott', icon: CheckCircle2, color: 'text-emerald-400' },
-                { label: 'RZ® Chating', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
+                { label: 'RZ® Chat', section: 'rz-chating', icon: Users, color: 'text-purple-400' },
                 { label: 'RZ® OTT My Day', section: 'rz-ott', icon: Clock, color: 'text-amber-400' }
               ].map((m, idx) => {
                 const Icon = m.icon;
