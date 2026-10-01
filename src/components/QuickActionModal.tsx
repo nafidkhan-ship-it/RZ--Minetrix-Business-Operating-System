@@ -169,7 +169,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Instant creation triggers synchronized across all 9 RZ® Minetrix platforms.
+                    Instant creation triggers synchronized across all 10 primary RZ® Minetrix platforms.
                   </p>
                 </div>
               </div>

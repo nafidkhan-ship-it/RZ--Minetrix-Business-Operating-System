@@ -33,7 +33,8 @@ import {
   Lock,
   Boxes,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Calculator
 } from 'lucide-react';
 import { SectionId } from '../types/architecture';
 
@@ -44,7 +45,7 @@ interface OverviewSectionProps {
 export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSection }) => {
   const [activePlatformId, setActivePlatformId] = useState<string | null>(null);
 
-  // The 9 Approved Connected Platforms
+  // The 10 Approved Connected Platforms
   const platforms = [
     {
       number: '01',
@@ -180,6 +181,21 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
         'Organise Today & Tomorrow — tasks, reminders, follow-ups, calendar, daily planning, notifications and automation.',
       modulesPreview: 'My Day • Tasks • Calendar • Reminders • Follow-ups • Automation • Reports',
       modules: ['My Day', 'Tasks', 'Calendar', 'Reminders', 'Follow-ups', 'Automation', 'Reports']
+    },
+    {
+      number: '10',
+      id: 'rz-calculator' as SectionId,
+      name: 'RZ® Calculator — FREE',
+      icon: Calculator,
+      theme: 'lime',
+      accentColor: 'text-lime-400',
+      borderAccent: 'hover:border-lime-500/50',
+      iconBg: 'bg-lime-500/10 text-lime-400 border border-lime-500/20',
+      tagBg: 'bg-lime-500/10 text-lime-300 border-lime-500/20',
+      description:
+        'General, business, GST, finance, and RZ mining utility calculators for immediate operational decisions.',
+      modulesPreview: 'General • GST • Finance • Vehicle • Mining • Productivity',
+      modules: ['General', 'GST', 'Finance', 'Vehicle', 'Mining', 'Productivity']
     }
   ];
 
@@ -238,7 +254,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
               <CheckCircle2 className="w-4 h-4 text-emerald-400" /> One Platform, One Login
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 9 Connected Platforms
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 10 Connected Platforms
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" /> One Shared Backbone
@@ -251,7 +267,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
       </div>
 
       {/* ================================================== */}
-      {/* RZ® MINETRIX ECOSYSTEM (FINAL 9-PLATFORM GRID)      */}
+      {/* RZ® MINETRIX ECOSYSTEM (FINAL 10-PLATFORM GRID)     */}
       {/* ================================================== */}
       <section className="space-y-6" id="rz-minetrix-ecosystem">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-2 border-b border-slate-800">
@@ -263,12 +279,12 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
               RZ® MINETRIX ECOSYSTEM
             </h3>
             <p className="text-sm text-slate-400 mt-0.5">
-              One Business Ecosystem. Nine Connected Platforms.
+              One Business Ecosystem. Ten Connected Platforms.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-mono text-slate-300">
-              9 Primary Platforms
+              10 Primary Platforms
             </span>
           </div>
         </div>
@@ -358,7 +374,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
             Ecosystem Relationship
           </h4>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            How the 9 platforms synchronize over a single unified backbone.
+            How the 10 primary platforms synchronize over a single unified backbone.
           </p>
         </div>
 
@@ -418,6 +434,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({ onNavigateSect
               <ul className="text-xs text-slate-300 space-y-1.5 font-medium">
                 <li className="py-1 px-2 rounded-lg bg-slate-900 border border-slate-800/80">RZ® Chat</li>
                 <li className="py-1 px-2 rounded-lg bg-slate-900 border border-slate-800/80">RZ® OTT</li>
+                <li className="py-1 px-2 rounded-lg bg-slate-900 border border-slate-800/80">RZ® Calculator</li>
               </ul>
             </div>
           </div>

@@ -128,7 +128,7 @@ export const RbacRoleDirectoryView: React.FC<RbacRoleDirectoryViewProps> = ({
             <span>24 Roles &amp; Multi-Tier Permission Engine</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5 max-w-2xl">
-            <strong>Architecture Principle:</strong> RBAC determines what each person can access and do. Granular permissions across 9 operational verbs.
+            <strong>Architecture Principle:</strong> RBAC determines what each person can access and do. Granular permissions across the full operational matrix.
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export const RbacRoleDirectoryView: React.FC<RbacRoleDirectoryViewProps> = ({
             <div>
               <h3 className="font-bold text-white text-base">Configurable Enterprise Permission Matrix</h3>
               <p className="text-xs text-slate-400">
-                Interactive matrix mapping all 9 standard permission levels across operating modules. Click any cell to toggle.
+                Interactive matrix mapping standard permission levels across operating modules. Click any cell to toggle.
               </p>
             </div>
             <div className="flex items-center gap-2">

@@ -325,6 +325,10 @@ export class DatabaseStore {
     tenantId?: string
   ): Promise<T> {
     const pool = postgresManager.getPool();
+    if (!postgresManager.isConfigured() || !pool) {
+      throw new Error('DATABASE_URL or POSTGRES_URL must be configured before transaction execution. Local JSON fallback is disabled.');
+    }
+
     if (this.persistenceAdapter instanceof PostgresPersistenceAdapter && pool && postgresManager.isConfigured()) {
       const client = await pool.connect();
       let isRolledBack = false;
@@ -372,41 +376,7 @@ export class DatabaseStore {
       }
     }
 
-    // Local JSON / In-Memory Snapshot Fallback
-    const snapshot = {
-      quarryProductions: new Map(this.quarryProductions),
-      quarryStocks: new Map(this.quarryStocks),
-      gatePasses: new Map(this.gatePasses),
-      quarryMasters: new Map(this.quarryMasters),
-      stoneProducts: new Map(this.stoneProducts),
-      quarryLandLeases: new Map(this.quarryLandLeases),
-      landownerSettlements: new Map(this.landownerSettlements)
-    };
-
-    const rollback = () => {
-      this.quarryProductions = new Map(snapshot.quarryProductions);
-      this.quarryStocks = new Map(snapshot.quarryStocks);
-      this.gatePasses = new Map(snapshot.gatePasses);
-      this.quarryMasters = new Map(snapshot.quarryMasters);
-      this.stoneProducts = new Map(snapshot.stoneProducts);
-      this.quarryLandLeases = new Map(snapshot.quarryLandLeases);
-      this.landownerSettlements = new Map(snapshot.landownerSettlements);
-    };
-
-    const txContext: TransactionContext = {
-      isPostgres: false,
-      rollback
-    };
-
-    try {
-      const result = await operation(txContext);
-      this.persistToDisk();
-      return result;
-    } catch (err) {
-      rollback();
-      this.persistToDisk();
-      throw err;
-    }
+    throw new Error('PostgreSQL persistence is required for transactional execution. Local JSON fallback is disabled.');
   }
 
   public getAdapterName(): string {
@@ -417,64 +387,60 @@ export class DatabaseStore {
   private storageFilePath: string;
 
   constructor() {
-    this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
-    if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-      this.persistenceAdapter = new PostgresPersistenceAdapter();
-    } else {
-      this.persistenceAdapter = new LocalJsonPersistenceAdapter(this.storageFilePath);
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl || !databaseUrl.trim()) {
+      throw new Error('DATABASE_URL or POSTGRES_URL must be configured. Local JSON fallback is disabled to preserve production integrity.');
     }
+
+    this.storageFilePath = path.join(process.cwd(), 'data', 'shared_core_db.json');
+    this.persistenceAdapter = new PostgresPersistenceAdapter();
     this.initializeAndSeed();
   }
 
   private initializeAndSeed() {
-    // Ensure directory exists
-    const dir = path.dirname(this.storageFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (this.persistenceAdapter instanceof LocalJsonPersistenceAdapter && process.env.ALLOW_LOCAL_JSON_FALLBACK === 'true') {
+      const dir = path.dirname(this.storageFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
 
-    if (fs.existsSync(this.storageFilePath)) {
-      try {
-        const fileContent = fs.readFileSync(this.storageFilePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        this.loadFromDump(parsed);
-        console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
-        
-        // Ensure Fleet default enterprise seed exists if loaded database was missing fleet data
-        if (this.fleetVehicles.size === 0) {
-          this.seedFleetDataOnly();
+      if (fs.existsSync(this.storageFilePath)) {
+        try {
+          const fileContent = fs.readFileSync(this.storageFilePath, 'utf-8');
+          const parsed = JSON.parse(fileContent);
+          this.loadFromDump(parsed);
+          console.log(`[DB] Database loaded via adapter [${this.persistenceAdapter.providerName}] from persistent storage.`);
+          
+          if (this.fleetVehicles.size === 0) {
+            this.seedFleetDataOnly();
+            this.persistToDisk();
+          }
+          if (this.transporterProfiles.size === 0) {
+            this.seedMarketplaceDataOnly();
+            this.persistToDisk();
+          }
+          if (this.crmCustomers.size === 0) {
+            this.seedCrmDataOnly();
+            this.persistToDisk();
+          }
+          if (this.chartOfAccounts.size === 0) {
+            this.seedFinanceDataOnly();
+            this.persistToDisk();
+          }
+          if (this.hrEmployees.size === 0) {
+            this.seedHrDataOnly();
+            this.persistToDisk();
+          }
+          if (this.quarryMasters.size === 0) {
+            this.seedQuarryDataOnly();
+            this.persistToDisk();
+          }
+          this.seedQuarryRbacData();
           this.persistToDisk();
+          return;
+        } catch (err) {
+          console.warn('[DB] Failed to parse db json file, seeding fresh database:', err);
         }
-        // Ensure Marketplace default enterprise seed exists if loaded database was missing marketplace data
-        if (this.transporterProfiles.size === 0) {
-          this.seedMarketplaceDataOnly();
-          this.persistToDisk();
-        }
-        // Ensure CRM default enterprise seed exists if loaded database was missing CRM data
-        if (this.crmCustomers.size === 0) {
-          this.seedCrmDataOnly();
-          this.persistToDisk();
-        }
-        // Ensure Finance default enterprise seed exists if loaded database was missing Finance data
-        if (this.chartOfAccounts.size === 0) {
-          this.seedFinanceDataOnly();
-          this.persistToDisk();
-        }
-        // Ensure HRMS default enterprise seed exists if loaded database was missing HRMS data
-        if (this.hrEmployees.size === 0) {
-          this.seedHrDataOnly();
-          this.persistToDisk();
-        }
-        // Ensure Quarry default enterprise seed exists if loaded database was missing Quarry data
-        if (this.quarryMasters.size === 0) {
-          this.seedQuarryDataOnly();
-          this.persistToDisk();
-        }
-        this.seedQuarryRbacData();
-        this.persistToDisk();
-        return;
-      } catch (err) {
-        console.warn('[DB] Failed to parse db json file, seeding fresh database:', err);
       }
     }
 
@@ -618,6 +584,10 @@ export class DatabaseStore {
   }
 
   public persistToDisk() {
+    if (process.env.ALLOW_LOCAL_JSON_FALLBACK !== 'true') {
+      return;
+    }
+
     try {
       const dump = {
         tenants: Array.from(this.tenants.values()),
